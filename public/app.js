@@ -1,5 +1,5 @@
 let foods = [];
-let cart = JSON.parse(localStorage.getItem("cart") || "[]");
+let cart = JSON.parse(localStorage.getItem("cart") || "[]").map(item => ({ ...item, foodId: String(item.foodId) }));
 let token = localStorage.getItem("token");
 
 const foodGrid = document.getElementById("foodGrid");
@@ -54,7 +54,8 @@ function updateCartCount() {
 }
 
 function addToCart(foodId) {
-  const existing = cart.find(item => item.foodId === foodId);
+  foodId = String(foodId);
+  const existing = cart.find(item => String(item.foodId) === foodId);
 
   if (existing) existing.quantity++;
   else cart.push({ foodId, quantity: 1 });
@@ -64,13 +65,14 @@ function addToCart(foodId) {
 }
 
 function changeQty(foodId, amount) {
-  const item = cart.find(x => x.foodId === foodId);
+  foodId = String(foodId);
+  const item = cart.find(x => String(x.foodId) === foodId);
   if (!item) return;
 
   item.quantity += amount;
 
   if (item.quantity <= 0) {
-    cart = cart.filter(x => x.foodId !== foodId);
+    cart = cart.filter(x => String(x.foodId) !== foodId);
   }
 
   saveCart();
@@ -79,7 +81,7 @@ function changeQty(foodId, amount) {
 
 function cartDetails() {
   return cart.map(item => {
-    const food = foods.find(f => f.id === item.foodId);
+    const food = foods.find(f => String(f.id) === String(item.foodId));
     return food ? { ...food, quantity: item.quantity } : null;
   }).filter(Boolean);
 }
