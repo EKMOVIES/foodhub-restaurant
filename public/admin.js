@@ -1,5 +1,6 @@
 let token = localStorage.getItem('adminToken');
 let foods = [];
+let categories = [];
 let selectedUser = null;
 let poller = null;
 
@@ -50,7 +51,7 @@ async function show() {
     if (me.role !== 'admin') throw Error('Admin access required.');
     $('login').classList.add('hidden');
     $('dash').classList.remove('hidden');
-    await Promise.all([stats(), loadFoods(), loadOrders(), loadUsers(), loadChats()]);
+    await Promise.all([stats(), loadCategories(), loadFoods(), loadOrders(), loadUsers(), loadChats()]);
     poller = setInterval(async () => {
       try {
         await loadChats();
@@ -76,10 +77,132 @@ async function stats() {
   }
 }
 
+// ===== CATEGORY FUNCTIONS =====
+async function loadCategories() {
+  try {
+    categories = await api('/api/categories');
+    console.log('Categories loaded:', categories);
+    renderCategories();
+    populateCategorySelect();
+    return categories;
+  } catch (error) {
+    console.error('Load categories error:', error);
+    $('categoryList').innerHTML = '<p>Error loading categories.</p>';
+  }
+}
+
+function renderCategories() {
+  if (!categories || categories.length === 0) {
+    $('categoryList').innerHTML = '<p>No categories available. Add your first category!</p>';
+    return;
+  }
+  
+  $('categoryList').innerHTML = categories.map(c => `
+    <div class="category-card">
+      <span class="icon">${c.icon || '📁'}</span>
+      <div class="name">${esc(c.name)}</div>
+      <div class="desc">${esc(c.description || '')}</div>
+      <div class="food-count">${c.food_count || 0} foods</div>
+      <div class="actions">
+        <button onclick="editCategory(${c.id})">Edit</button>
+        <button class="delete" onclick="delCategory(${c.id})">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function populateCategorySelect() {
+  const select = $('foodCategory');
+  if (!select) return;
+  
+  select.innerHTML = '<option value="">Select Category</option>';
+  categories.forEach(c => {
+    select.innerHTML += `<option value="${c.id}">${c.icon || '📁'} ${esc(c.name)}</option>`;
+  });
+}
+
+function openCategory(c = null) {
+  $('categoryFormTitle').textContent = c ? 'Edit Category' : 'Add Category';
+  $('categoryId').value = c?.id || '';
+  $('categoryName').value = c?.name || '';
+  $('categoryIcon').value = c?.icon || '';
+  $('categoryDesc').value = c?.description || '';
+  $('categoryModal').classList.remove('hidden');
+}
+
+function closeCategory() {
+  $('categoryModal').classList.add('hidden');
+}
+
+function editCategory(id) {
+  let category = null;
+  category = categories.find(c => c.id === id);
+  if (!category) category = categories.find(c => String(c.id) === String(id));
+  if (!category) {
+    alert('Category not found!');
+    return;
+  }
+  openCategory(category);
+}
+
+async function saveCategory(e) {
+  e.preventDefault();
+  const id = $('categoryId').value;
+  const body = {
+    name: $('categoryName').value.trim(),
+    icon: $('categoryIcon').value.trim() || '📁',
+    description: $('categoryDesc').value.trim()
+  };
+  
+  try {
+    if (id) {
+      await api('/api/admin/categories/' + id, {
+        method: 'PUT',
+        body: JSON.stringify(body)
+      });
+    } else {
+      await api('/api/admin/categories', {
+        method: 'POST',
+        body: JSON.stringify(body)
+      });
+    }
+    closeCategory();
+    await loadCategories();
+    alert(id ? 'Category updated!' : 'Category added!');
+  } catch (e) {
+    console.error('Save category error:', e);
+    alert('Error saving category: ' + e.message);
+  }
+}
+
+async function delCategory(id) {
+  const category = categories.find(c => c.id === id);
+  if (category && category.food_count > 0) {
+    if (!confirm(`Category "${category.name}" has ${category.food_count} foods. Delete anyway?`)) {
+      return;
+    }
+  } else {
+    if (!confirm('Delete this category?')) return;
+  }
+  
+  try {
+    await api('/api/admin/categories/' + id, {
+      method: 'DELETE'
+    });
+    await loadCategories();
+    await loadFoods();
+    alert('Category deleted!');
+  } catch (e) {
+    console.error('Delete category error:', e);
+    alert('Error deleting category: ' + e.message);
+  }
+}
+
+// ===== FOOD FUNCTIONS =====
 async function loadFoods() {
   try {
     foods = await api('/api/foods');
-    console.log('Foods loaded for admin:', foods);
+    console.log('Foods loaded:', foods);
     renderFoods();
   } catch (error) {
     console.error('Load foods error:', error);
@@ -93,22 +216,99 @@ function renderFoods() {
     return;
   }
   
-  $('foodList').innerHTML = foods.map(f => `
-    <article class="food">
-      <img src="${f.image}" alt="${esc(f.name)}">
-      <div class="foodbody">
-        <h3>${esc(f.name)}</h3>
-        <p>${esc(f.description)}</p>
-        <b>৳${Number(f.price).toFixed(2)}</b>
-        <div class="actions">
-          <button onclick="editFood(${f.id})">Edit</button>
-          <button class="delete" onclick="delFood(${f.id})">Delete</button>
+  $('foodList').innerHTML = foods.map(f => {
+    const category = categories.find(c => c.id === f.category_id);
+    return `
+      <article class="food">
+        <img src="${f.image}" alt="${esc(f.name)}">
+        <div class="foodbody">
+          <h3>${esc(f.name)}</h3>
+          ${category ? `<span style="font-size:12px;color:#0b6b57;">${category.icon} ${esc(category.name)}</span>` : ''}
+          <p>${esc(f.description)}</p>
+          <b>৳${Number(f.price).toFixed(2)}</b>
+          <div class="actions">
+            <button onclick="editFood(${f.id})">Edit</button>
+            <button class="delete" onclick="delFood(${f.id})">Delete</button>
+          </div>
         </div>
-      </div>
-    </article>
-  `).join('');
+      </article>
+    `;
+  }).join('');
 }
 
+function openFood(f = null) {
+  $('formTitle').textContent = f ? 'Edit Food' : 'Add Food';
+  $('foodId').value = f?.id || '';
+  $('foodName').value = f?.name || '';
+  $('foodDesc').value = f?.description || '';
+  $('foodPrice').value = f?.price || '';
+  $('foodImage').value = f?.image || '';
+  $('foodCategory').value = f?.category_id || '';
+  $('modal').classList.remove('hidden');
+}
+
+function closeFood() {
+  $('modal').classList.add('hidden');
+}
+
+function editFood(id) {
+  let food = null;
+  food = foods.find(f => f.id === id);
+  if (!food) food = foods.find(f => String(f.id) === String(id));
+  if (!food) {
+    alert('Food not found!');
+    return;
+  }
+  openFood(food);
+}
+
+async function saveFood(e) {
+  e.preventDefault();
+  const id = $('foodId').value;
+  const body = {
+    name: $('foodName').value.trim(),
+    description: $('foodDesc').value.trim(),
+    price: Number($('foodPrice').value),
+    image: $('foodImage').value.trim(),
+    category_id: $('foodCategory').value || null
+  };
+  
+  try {
+    if (id) {
+      await api('/api/admin/foods/' + id, {
+        method: 'PUT',
+        body: JSON.stringify(body)
+      });
+    } else {
+      await api('/api/admin/foods', {
+        method: 'POST',
+        body: JSON.stringify(body)
+      });
+    }
+    closeFood();
+    await Promise.all([loadFoods(), loadCategories(), stats()]);
+    alert(id ? 'Food updated!' : 'Food added!');
+  } catch (e) {
+    console.error('Save food error:', e);
+    alert('Error saving food: ' + e.message);
+  }
+}
+
+async function delFood(id) {
+  if (!confirm('Delete this food?')) return;
+  try {
+    await api('/api/admin/foods/' + id, {
+      method: 'DELETE'
+    });
+    await Promise.all([loadFoods(), stats()]);
+    alert('Food deleted!');
+  } catch (e) {
+    console.error('Delete food error:', e);
+    alert('Error deleting food: ' + e.message);
+  }
+}
+
+// ===== ORDER FUNCTIONS =====
 async function loadOrders() {
   try {
     const os = await api('/api/admin/orders');
@@ -137,6 +337,19 @@ async function loadOrders() {
   }
 }
 
+async function status(id, s) {
+  try {
+    await api('/api/admin/orders/' + id + '/status', {
+      method: 'PATCH',
+      body: JSON.stringify({ status: s })
+    });
+    await Promise.all([loadOrders(), stats()]);
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+// ===== USER FUNCTIONS =====
 async function loadUsers() {
   try {
     const us = await api('/api/admin/users');
@@ -175,6 +388,7 @@ async function loadUsers() {
   }
 }
 
+// ===== CHAT FUNCTIONS =====
 async function loadChats() {
   try {
     const cs = await api('/api/admin/chats');
@@ -246,114 +460,10 @@ async function sendAdmin(e) {
   }
 }
 
-// ===== FIXED FOOD FUNCTIONS =====
-function openFood(f = null) {
-  $('formTitle').textContent = f ? 'Edit Food' : 'Add Food';
-  $('foodId').value = f?.id || '';
-  $('foodName').value = f?.name || '';
-  $('foodDesc').value = f?.description || '';
-  $('foodPrice').value = f?.price || '';
-  $('foodImage').value = f?.image || '';
-  $('modal').classList.remove('hidden');
-}
-
-function closeFood() {
-  $('modal').classList.add('hidden');
-}
-
-function editFood(id) {
-  console.log('Edit food called with ID:', id);
-  console.log('Available foods:', foods);
-  
-  // Try multiple ways to find the food
-  let food = null;
-  
-  // 1. Try exact match
-  food = foods.find(f => f.id === id);
-  
-  // 2. Try string comparison
-  if (!food) {
-    food = foods.find(f => String(f.id) === String(id));
-  }
-  
-  // 3. Try number comparison
-  if (!food) {
-    const numId = Number(id);
-    food = foods.find(f => Number(f.id) === numId);
-  }
-  
-  if (!food) {
-    console.error('Food not found for ID:', id);
-    alert('Food item not found. Please refresh and try again.');
-    return;
-  }
-  
-  console.log('Found food to edit:', food);
-  openFood(food);
-}
-
-async function saveFood(e) {
-  e.preventDefault();
-  const id = $('foodId').value;
-  const body = {
-    name: $('foodName').value,
-    description: $('foodDesc').value,
-    price: Number($('foodPrice').value),
-    image: $('foodImage').value
-  };
-  
-  try {
-    if (id) {
-      // Update existing food
-      await api('/api/admin/foods/' + id, {
-        method: 'PUT',
-        body: JSON.stringify(body)
-      });
-    } else {
-      // Create new food
-      await api('/api/admin/foods', {
-        method: 'POST',
-        body: JSON.stringify(body)
-      });
-    }
-    closeFood();
-    await Promise.all([loadFoods(), stats()]);
-    alert(id ? 'Food updated successfully!' : 'Food added successfully!');
-  } catch (e) {
-    console.error('Save food error:', e);
-    alert('Error saving food: ' + e.message);
-  }
-}
-
-async function delFood(id) {
-  if (!confirm('Delete this food?')) return;
-  try {
-    await api('/api/admin/foods/' + id, {
-      method: 'DELETE'
-    });
-    await Promise.all([loadFoods(), stats()]);
-    alert('Food deleted successfully!');
-  } catch (e) {
-    console.error('Delete food error:', e);
-    alert('Error deleting food: ' + e.message);
-  }
-}
-
-async function status(id, s) {
-  try {
-    await api('/api/admin/orders/' + id + '/status', {
-      method: 'PATCH',
-      body: JSON.stringify({ status: s })
-    });
-    await Promise.all([loadOrders(), stats()]);
-  } catch (e) {
-    alert(e.message);
-  }
-}
-
 // ===== EVENT LISTENERS =====
 $('loginForm').addEventListener('submit', login);
 $('foodForm').addEventListener('submit', saveFood);
+$('categoryForm').addEventListener('submit', saveCategory);
 $('adminChatForm').addEventListener('submit', sendAdmin);
 
 $('logout').onclick = () => {
@@ -367,9 +477,3 @@ if (token) {
     console.error('Initialization error:', error);
   });
 }
-
-// Debug helper
-window.debugFoods = function() {
-  console.log('Foods in memory:', foods);
-  console.log('Food IDs:', foods.map(f => ({ id: f.id, type: typeof f.id, name: f.name })));
-};

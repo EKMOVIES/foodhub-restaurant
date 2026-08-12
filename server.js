@@ -167,11 +167,128 @@ app.get("/api/me", auth, async (req, res) => {
   }
 });
 
+// ---------------- CATEGORIES ----------------
+app.get("/api/categories", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT c.*, COUNT(f.id) as food_count 
+      FROM categories c
+      LEFT JOIN foods f ON f.category_id = c.id
+      GROUP BY c.id
+      ORDER BY c.name
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Could not load categories." });
+  }
+});
+
+app.post("/api/admin/categories", auth, adminOnly, async (req, res) => {
+  try {
+    const { name, icon, description } = req.body;
+    
+    if (!name || name.trim().length === 0) {
+      return res.status(400).json({ message: "Category name is required." });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO categories (name, icon, description) 
+       VALUES ($1, $2, $3) 
+       RETURNING *`,
+      [name.trim(), icon || '📁', description || '']
+    );
+    
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    if (err.code === '23505') {
+      return res.status(409).json({ message: "Category with this name already exists." });
+    }
+    res.status(500).json({ message: "Could not create category." });
+  }
+});
+
+app.put("/api/admin/categories/:id", auth, adminOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, icon, description } = req.body;
+    
+    if (!name || name.trim().length === 0) {
+      return res.status(400).json({ message: "Category name is required." });
+    }
+
+    const result = await pool.query(
+      `UPDATE categories 
+       SET name = $1, icon = $2, description = $3, updated_at = NOW() 
+       WHERE id = $4 
+       RETURNING *`,
+      [name.trim(), icon || '📁', description || '', id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Category not found." });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    if (err.code === '23505') {
+      return res.status(409).json({ message: "Category with this name already exists." });
+    }
+    res.status(500).json({ message: "Could not update category." });
+  }
+});
+
+app.delete("/api/admin/categories/:id", auth, adminOnly, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    
+    await client.query("BEGIN");
+    
+    const checkResult = await client.query(
+      "SELECT COUNT(*) FROM foods WHERE category_id = $1",
+      [id]
+    );
+    
+    if (parseInt(checkResult.rows[0].count) > 0) {
+      await client.query(
+        "UPDATE foods SET category_id = NULL WHERE category_id = $1",
+        [id]
+      );
+    }
+    
+    const result = await client.query(
+      "DELETE FROM categories WHERE id = $1 RETURNING *",
+      [id]
+    );
+    
+    if (result.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Category not found." });
+    }
+    
+    await client.query("COMMIT");
+    res.json({ message: "Category deleted successfully." });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error(err);
+    res.status(500).json({ message: "Could not delete category." });
+  } finally {
+    client.release();
+  }
+});
+
 // ---------------- FOODS ----------------
 app.get("/api/foods", async (req, res) => {
   try {
     const result = await pool.query(
-      "select id,name,description,price::float,image from public.foods order by id desc"
+      `SELECT f.id, f.name, f.description, f.price::float, f.image, f.category_id,
+              c.name as category_name, c.icon as category_icon
+       FROM foods f
+       LEFT JOIN categories c ON c.id = f.category_id
+       ORDER BY f.id DESC`
     );
     res.json(result.rows);
   } catch (err) {
@@ -195,7 +312,7 @@ app.post("/api/orders", auth, async (req, res) => {
       });
     }
 
-    await client.query("begin");
+    await client.query("BEGIN");
 
     let total = 0;
     const cleanItems = [];
@@ -209,7 +326,7 @@ app.post("/api/orders", auth, async (req, res) => {
       }
 
       const result = await client.query(
-        "select id,name,price::float from public.foods where id = $1",
+        "SELECT id, name, price::float FROM foods WHERE id = $1",
         [foodId]
       );
       const food = result.rows[0];
@@ -226,9 +343,9 @@ app.post("/api/orders", auth, async (req, res) => {
     }
 
     const orderResult = await client.query(
-      `insert into public.orders(user_id,customer_name,phone,address,total)
-       values($1,$2,$3,$4,$5)
-       returning id,total::float`,
+      `INSERT INTO orders(user_id, customer_name, phone, address, total)
+       VALUES($1, $2, $3, $4, $5)
+       RETURNING id, total::float`,
       [
         req.user.id,
         String(customerName).trim(),
@@ -242,13 +359,13 @@ app.post("/api/orders", auth, async (req, res) => {
 
     for (const item of cleanItems) {
       await client.query(
-        `insert into public.order_items(order_id,food_id,food_name,price,quantity)
-         values($1,$2,$3,$4,$5)`,
+        `INSERT INTO order_items(order_id, food_id, food_name, price, quantity)
+         VALUES($1, $2, $3, $4, $5)`,
         [orderId, item.foodId, item.name, item.price, item.quantity]
       );
     }
 
-    await client.query("commit");
+    await client.query("COMMIT");
 
     res.status(201).json({
       message: "Order placed.",
@@ -256,7 +373,7 @@ app.post("/api/orders", auth, async (req, res) => {
       total
     });
   } catch (err) {
-    await client.query("rollback");
+    await client.query("ROLLBACK");
     console.error(err);
     res.status(400).json({ message: err.message || "Could not place order." });
   } finally {
@@ -267,17 +384,17 @@ app.post("/api/orders", auth, async (req, res) => {
 app.get("/api/orders", auth, async (req, res) => {
   try {
     const orders = await pool.query(
-      `select id,customer_name,phone,address,total::float,status,created_at
-       from public.orders
-       where user_id = $1
-       order by id desc`,
+      `SELECT id, customer_name, phone, address, total::float, status, created_at
+       FROM orders
+       WHERE user_id = $1
+       ORDER BY id DESC`,
       [req.user.id]
     );
 
     for (const order of orders.rows) {
       const items = await pool.query(
-        `select food_id,food_name,price::float,quantity
-         from public.order_items where order_id = $1 order by id`,
+        `SELECT food_id, food_name, price::float, quantity
+         FROM order_items WHERE order_id = $1 ORDER BY id`,
         [order.id]
       );
       order.items = items.rows;
@@ -295,8 +412,8 @@ app.get("/api/chat", auth, async (req, res) => {
   try {
     const chatId = await ensureChat(req.user.id);
     const result = await pool.query(
-      `select id,sender_id,sender_role,message,created_at
-       from public.messages where chat_id = $1 order by id asc`,
+      `SELECT id, sender_id, sender_role, message, created_at
+       FROM messages WHERE chat_id = $1 ORDER BY id ASC`,
       [chatId]
     );
     res.json({ chatId, messages: result.rows });
@@ -314,9 +431,9 @@ app.post("/api/chat/messages", auth, async (req, res) => {
 
     const chatId = await ensureChat(req.user.id);
     const result = await pool.query(
-      `insert into public.messages(chat_id,sender_id,sender_role,message)
-       values($1,$2,$3,$4)
-       returning id,sender_id,sender_role,message,created_at`,
+      `INSERT INTO messages(chat_id, sender_id, sender_role, message)
+       VALUES($1, $2, $3, $4)
+       RETURNING id, sender_id, sender_role, message, created_at`,
       [chatId, req.user.id, req.user.role, message]
     );
 
@@ -331,11 +448,11 @@ app.post("/api/chat/messages", auth, async (req, res) => {
 app.get("/api/admin/stats", auth, adminOnly, async (req, res) => {
   try {
     const [foods, orders, customers, revenue] = await Promise.all([
-      pool.query("select count(*)::int as count from public.foods"),
-      pool.query("select count(*)::int as count from public.orders"),
-      pool.query("select count(*)::int as count from public.users where role='customer'"),
+      pool.query("SELECT COUNT(*)::int as count FROM foods"),
+      pool.query("SELECT COUNT(*)::int as count FROM orders"),
+      pool.query("SELECT COUNT(*)::int as count FROM users WHERE role='customer'"),
       pool.query(
-        "select coalesce(sum(total),0)::float as total from public.orders where status <> 'Cancelled'"
+        "SELECT COALESCE(SUM(total),0)::float as total FROM orders WHERE status <> 'Cancelled'"
       )
     ]);
 
@@ -354,17 +471,17 @@ app.get("/api/admin/stats", auth, adminOnly, async (req, res) => {
 app.get("/api/admin/users", auth, adminOnly, async (req, res) => {
   try {
     const result = await pool.query(`
-      select
-        u.id,u.name,u.email,u.role,u.created_at,
-        count(distinct o.id)::int as order_count,
-        coalesce(sum(case when o.status <> 'Cancelled' then o.total else 0 end),0)::float as total_spent,
-        count(distinct m.id)::int as message_count
-      from public.users u
-      left join public.orders o on o.user_id = u.id
-      left join public.chats c on c.user_id = u.id
-      left join public.messages m on m.chat_id = c.id
-      group by u.id
-      order by u.created_at desc
+      SELECT
+        u.id, u.name, u.email, u.role, u.created_at,
+        COUNT(DISTINCT o.id)::int as order_count,
+        COALESCE(SUM(CASE WHEN o.status <> 'Cancelled' THEN o.total ELSE 0 END),0)::float as total_spent,
+        COUNT(DISTINCT m.id)::int as message_count
+      FROM users u
+      LEFT JOIN orders o ON o.user_id = u.id
+      LEFT JOIN chats c ON c.user_id = u.id
+      LEFT JOIN messages m ON m.chat_id = c.id
+      GROUP BY u.id
+      ORDER BY u.created_at DESC
     `);
 
     res.json(result.rows);
@@ -377,17 +494,17 @@ app.get("/api/admin/users", auth, adminOnly, async (req, res) => {
 app.get("/api/admin/orders", auth, adminOnly, async (req, res) => {
   try {
     const result = await pool.query(`
-      select o.id,o.customer_name,o.phone,o.address,o.total::float,o.status,o.created_at,
+      SELECT o.id, o.customer_name, o.phone, o.address, o.total::float, o.status, o.created_at,
              u.email as customer_email
-      from public.orders o
-      join public.users u on u.id = o.user_id
-      order by o.id desc
+      FROM orders o
+      JOIN users u ON u.id = o.user_id
+      ORDER BY o.id DESC
     `);
 
     for (const order of result.rows) {
       const items = await pool.query(
-        `select food_id,food_name,price::float,quantity
-         from public.order_items where order_id=$1 order by id`,
+        `SELECT food_id, food_name, price::float, quantity
+         FROM order_items WHERE order_id=$1 ORDER BY id`,
         [order.id]
       );
       order.items = items.rows;
@@ -416,7 +533,7 @@ app.patch("/api/admin/orders/:id/status", auth, adminOnly, async (req, res) => {
 
   try {
     const result = await pool.query(
-      "update public.orders set status=$1 where id=$2 returning id",
+      "UPDATE orders SET status=$1 WHERE id=$2 RETURNING id",
       [req.body.status, req.params.id]
     );
     if (!result.rows[0]) return res.status(404).json({ message: "Order not found." });
@@ -433,6 +550,7 @@ app.post("/api/admin/foods", auth, adminOnly, async (req, res) => {
     const description = String(req.body.description || "").trim();
     const image = String(req.body.image || "").trim();
     const price = Number(req.body.price);
+    const category_id = req.body.category_id || null;
 
     if (!name || !description || !image || !Number.isFinite(price) || price < 0) {
       return res.status(400).json({
@@ -440,11 +558,21 @@ app.post("/api/admin/foods", auth, adminOnly, async (req, res) => {
       });
     }
 
+    if (category_id) {
+      const catCheck = await pool.query(
+        "SELECT id FROM categories WHERE id = $1",
+        [category_id]
+      );
+      if (!catCheck.rows[0]) {
+        return res.status(400).json({ message: "Selected category does not exist." });
+      }
+    }
+
     const result = await pool.query(
-      `insert into public.foods(name,description,price,image)
-       values($1,$2,$3,$4)
-       returning id,name,description,price::float,image`,
-      [name, description, price, image]
+      `INSERT INTO foods(name, description, price, image, category_id)
+       VALUES($1, $2, $3, $4, $5)
+       RETURNING id, name, description, price::float, image, category_id`,
+      [name, description, price, image, category_id]
     );
 
     res.status(201).json({ food: result.rows[0] });
@@ -460,6 +588,7 @@ app.put("/api/admin/foods/:id", auth, adminOnly, async (req, res) => {
     const description = String(req.body.description || "").trim();
     const image = String(req.body.image || "").trim();
     const price = Number(req.body.price);
+    const category_id = req.body.category_id || null;
 
     if (!name || !description || !image || !Number.isFinite(price) || price < 0) {
       return res.status(400).json({
@@ -467,11 +596,22 @@ app.put("/api/admin/foods/:id", auth, adminOnly, async (req, res) => {
       });
     }
 
+    if (category_id) {
+      const catCheck = await pool.query(
+        "SELECT id FROM categories WHERE id = $1",
+        [category_id]
+      );
+      if (!catCheck.rows[0]) {
+        return res.status(400).json({ message: "Selected category does not exist." });
+      }
+    }
+
     const result = await pool.query(
-      `update public.foods set name=$1,description=$2,price=$3,image=$4
-       where id=$5
-       returning id,name,description,price::float,image`,
-      [name, description, price, image, req.params.id]
+      `UPDATE foods 
+       SET name=$1, description=$2, price=$3, image=$4, category_id=$5
+       WHERE id=$6
+       RETURNING id, name, description, price::float, image, category_id`,
+      [name, description, price, image, category_id, req.params.id]
     );
 
     if (!result.rows[0]) return res.status(404).json({ message: "Food not found." });
@@ -485,7 +625,7 @@ app.put("/api/admin/foods/:id", auth, adminOnly, async (req, res) => {
 app.delete("/api/admin/foods/:id", auth, adminOnly, async (req, res) => {
   try {
     const used = await pool.query(
-      "select count(*)::int as count from public.order_items where food_id=$1",
+      "SELECT COUNT(*)::int as count FROM order_items WHERE food_id=$1",
       [req.params.id]
     );
     if (used.rows[0].count > 0) {
@@ -495,7 +635,7 @@ app.delete("/api/admin/foods/:id", auth, adminOnly, async (req, res) => {
     }
 
     const result = await pool.query(
-      "delete from public.foods where id=$1 returning id",
+      "DELETE FROM foods WHERE id=$1 RETURNING id",
       [req.params.id]
     );
     if (!result.rows[0]) return res.status(404).json({ message: "Food not found." });
@@ -506,27 +646,26 @@ app.delete("/api/admin/foods/:id", auth, adminOnly, async (req, res) => {
   }
 });
 
-// Admin chat endpoints use customer user UUIDs, matching the frontend.
 app.get("/api/admin/chats", auth, adminOnly, async (req, res) => {
   try {
     const result = await pool.query(`
-      select
+      SELECT
         u.id as user_id,
         u.name,
         u.email,
-        max(m.created_at) as last_message_at,
+        MAX(m.created_at) as last_message_at,
         (
-          select m2.message
-          from public.messages m2
-          join public.chats c2 on c2.id=m2.chat_id
-          where c2.user_id=u.id
-          order by m2.id desc limit 1
+          SELECT m2.message
+          FROM messages m2
+          JOIN chats c2 ON c2.id = m2.chat_id
+          WHERE c2.user_id = u.id
+          ORDER BY m2.id DESC LIMIT 1
         ) as last_message
-      from public.users u
-      join public.chats c on c.user_id=u.id
-      left join public.messages m on m.chat_id=c.id
-      group by u.id
-      order by last_message_at desc nulls last, u.created_at desc
+      FROM users u
+      JOIN chats c ON c.user_id = u.id
+      LEFT JOIN messages m ON m.chat_id = c.id
+      GROUP BY u.id
+      ORDER BY last_message_at DESC NULLS LAST, u.created_at DESC
     `);
     res.json(result.rows);
   } catch (err) {
@@ -538,13 +677,13 @@ app.get("/api/admin/chats", auth, adminOnly, async (req, res) => {
 app.get("/api/admin/chats/:userId", auth, adminOnly, async (req, res) => {
   try {
     const user = await pool.query(
-      "select id,name,email from public.users where id=$1",
+      "SELECT id, name, email FROM users WHERE id=$1",
       [req.params.userId]
     );
     if (!user.rows[0]) return res.status(404).json({ message: "Customer not found." });
 
     const chat = await pool.query(
-      "select id from public.chats where user_id=$1 limit 1",
+      "SELECT id FROM chats WHERE user_id=$1 LIMIT 1",
       [req.params.userId]
     );
 
@@ -553,8 +692,8 @@ app.get("/api/admin/chats/:userId", auth, adminOnly, async (req, res) => {
     }
 
     const messages = await pool.query(
-      `select id,sender_id,sender_role,message,created_at
-       from public.messages where chat_id=$1 order by id asc`,
+      `SELECT id, sender_id, sender_role, message, created_at
+       FROM messages WHERE chat_id=$1 ORDER BY id ASC`,
       [chat.rows[0].id]
     );
 
@@ -577,9 +716,9 @@ app.post("/api/admin/chats/:userId/messages", auth, adminOnly, async (req, res) 
 
     const chatId = await ensureChat(req.params.userId);
     const result = await pool.query(
-      `insert into public.messages(chat_id,sender_id,sender_role,message)
-       values($1,$2,'admin',$3)
-       returning id,sender_id,sender_role,message,created_at`,
+      `INSERT INTO messages(chat_id, sender_id, sender_role, message)
+       VALUES($1, $2, 'admin', $3)
+       RETURNING id, sender_id, sender_role, message, created_at`,
       [chatId, req.user.id, message]
     );
 
@@ -590,7 +729,6 @@ app.post("/api/admin/chats/:userId/messages", auth, adminOnly, async (req, res) 
   }
 });
 
-// Fallback for SPA-like hosting; keep admin.html directly accessible.
 app.get("/admin", (req, res) => res.sendFile(path.join(__dirname, "public", "admin.html")));
 
 app.listen(PORT, () => {

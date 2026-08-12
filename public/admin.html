@@ -36,6 +36,19 @@
         <div><small>Revenue</small><b id="revenueN">৳0</b></div>
       </div>
 
+      <!-- Category Management -->
+      <section class="card">
+        <div class="title">
+          <div>
+            <h2>Category Management</h2>
+            <p>Add, edit and delete food categories.</p>
+          </div>
+          <button type="button" onclick="openCategory()">+ Add Category</button>
+        </div>
+        <div id="categoryList" class="category-grid"></div>
+      </section>
+
+      <!-- Food Management -->
       <section class="card">
         <div class="title">
           <div>
@@ -47,6 +60,7 @@
         <div id="foodList" class="grid"></div>
       </section>
 
+      <!-- Users -->
       <section class="card">
         <div class="title">
           <div>
@@ -57,6 +71,7 @@
         <div id="userList"></div>
       </section>
 
+      <!-- Chat -->
       <section class="card">
         <div class="title">
           <div>
@@ -86,6 +101,7 @@
         </div>
       </section>
 
+      <!-- Orders -->
       <section class="card">
         <h2>Orders</h2>
         <div id="orderList"></div>
@@ -93,17 +109,35 @@
     </section>
   </main>
 
+  <!-- Category Modal -->
+  <div id="categoryModal" class="modal hidden">
+    <div class="modalCard">
+      <button class="close" type="button" onclick="closeCategory()">×</button>
+      <h2 id="categoryFormTitle">Add Category</h2>
+      <form id="categoryForm">
+        <input id="categoryId" type="hidden">
+        <input id="categoryName" placeholder="Category name" required>
+        <input id="categoryIcon" placeholder="Icon emoji (e.g., 🍕)" required>
+        <textarea id="categoryDesc" placeholder="Category description" rows="2"></textarea>
+        <button type="submit">Save Category</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Food Modal -->
   <div id="modal" class="modal hidden">
     <div class="modalCard">
       <button class="close" type="button" onclick="closeFood()">×</button>
       <h2 id="formTitle">Add Food</h2>
-
       <form id="foodForm">
         <input id="foodId" type="hidden">
         <input id="foodName" placeholder="Food name" required>
         <textarea id="foodDesc" placeholder="Description" required></textarea>
         <input id="foodPrice" type="number" min="0" step=".01" placeholder="Price" required>
         <input id="foodImage" type="url" placeholder="Image URL" required>
+        <select id="foodCategory" required>
+          <option value="">Select Category</option>
+        </select>
         <button type="submit">Save Food</button>
       </form>
     </div>

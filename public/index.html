@@ -90,6 +90,14 @@
         <h2>Our Menu</h2>
         <p>Freshly prepared favourites.</p>
       </div>
+      
+      <!-- Category Filter -->
+      <div id="categoryFilter" class="category-filter">
+        <button class="category-filter-btn active" onclick="filterByCategory('all')">
+          All <span class="count" id="allCount">0</span>
+        </button>
+      </div>
+      
       <div id="foodGrid" class="food-grid"></div>
     </section>
   </main>
@@ -106,9 +114,7 @@
   <div id="productModal" class="modal hidden">
     <div class="modal-card product-detail-card">
       <button class="close" onclick="closeProductModal()">×</button>
-      <div id="productDetailContent">
-        <!-- Dynamic content will be loaded here -->
-      </div>
+      <div id="productDetailContent"></div>
     </div>
   </div>
 

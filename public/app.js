@@ -2,6 +2,8 @@ let foods = [];
 let cart = [];
 let token = localStorage.getItem("token");
 let currentUserId = null;
+let allFoods = [];
+let selectedCategory = 'all';
 
 function getCartStorageKey() {
   return currentUserId ? `foodhub_cart_user_${currentUserId}` : "foodhub_cart_guest";
@@ -76,7 +78,9 @@ async function loadFoods() {
     }
     const data = await response.json();
     foods = data;
+    allFoods = [...data];
     renderFoods();
+    loadCategoriesForFilter();
     console.log('Foods loaded successfully:', foods.length);
     return foods;
   } catch (error) {
@@ -94,6 +98,7 @@ function renderFoods() {
         <img src="${food.image}" alt="${food.name}">
         <div class="food-body">
           <h3>${food.name}</h3>
+          ${food.category_name ? `<span style="font-size:12px;color:#0b6b57;">${food.category_icon || '📁'} ${food.category_name}</span>` : ''}
           <p>${food.description}</p>
           <div class="price">৳${food.price.toFixed(2)}</div>
           <button onclick="event.stopPropagation(); addToCart(${foodId})">Add to Cart</button>
@@ -760,26 +765,17 @@ window.testSearch = function(query) {
   performSearch(query);
 };
 
-// ===== PRODUCT DETAIL FUNCTIONALITY (FIXED) =====
+// ===== PRODUCT DETAIL FUNCTIONALITY =====
 const productModal = document.getElementById('productModal');
 const productDetailContent = document.getElementById('productDetailContent');
 
 function showProductDetail(foodId) {
   try {
-    console.log('showProductDetail called with:', foodId, 'Type:', typeof foodId);
+    console.log('showProductDetail called with:', foodId);
     
-    // Try multiple ways to find the food
     let food = null;
-    
-    // 1. Try exact match
     food = foods.find(f => f.id === foodId);
-    
-    // 2. Try string comparison
-    if (!food) {
-      food = foods.find(f => String(f.id) === String(foodId));
-    }
-    
-    // 3. Try number comparison
+    if (!food) food = foods.find(f => String(f.id) === String(foodId));
     if (!food) {
       const numId = Number(foodId);
       food = foods.find(f => Number(f.id) === numId);
@@ -787,7 +783,6 @@ function showProductDetail(foodId) {
     
     if (!food) {
       console.error('Product not found for ID:', foodId);
-      console.log('Available food IDs:', foods.map(f => ({ id: f.id, type: typeof f.id, name: f.name })));
       showToast('Product not found!');
       return;
     }
@@ -803,7 +798,7 @@ function showProductDetail(foodId) {
         <img src="${food.image}" alt="${food.name}" class="product-detail-image" onerror="this.src='https://via.placeholder.com/600x300'">
         
         <div class="product-detail-info">
-          <div class="category">${food.category || 'Popular'}</div>
+          <div class="category">${food.category_name || 'Popular'}</div>
           <h2 class="name">${food.name}</h2>
           <p class="description">${food.description || 'Delicious food item prepared with fresh ingredients.'}</p>
           <div class="price">৳${food.price.toFixed(2)}</div>
@@ -865,3 +860,53 @@ document.addEventListener('keydown', function(e) {
     closeProductModal();
   }
 });
+
+// ===== CATEGORY FILTER FUNCTIONALITY =====
+async function loadCategoriesForFilter() {
+  try {
+    const response = await fetch('/api/categories');
+    if (!response.ok) throw new Error('Failed to load categories');
+    const categories = await response.json();
+    
+    const filterContainer = document.getElementById('categoryFilter');
+    if (!filterContainer) return;
+    
+    let html = `<button class="category-filter-btn active" onclick="filterByCategory('all', event)">
+      All <span class="count" id="allCount">${allFoods.length}</span>
+    </button>`;
+    
+    categories.forEach(cat => {
+      const count = allFoods.filter(f => f.category_id === cat.id).length;
+      html += `<button class="category-filter-btn" onclick="filterByCategory('${cat.id}', event)" data-category-id="${cat.id}">
+        ${cat.icon || '📁'} ${cat.name} <span class="count">${count}</span>
+      </button>`;
+    });
+    
+    filterContainer.innerHTML = html;
+  } catch (error) {
+    console.error('Error loading categories for filter:', error);
+  }
+}
+
+function filterByCategory(categoryId, event) {
+  selectedCategory = categoryId;
+  
+  if (event && event.target) {
+    document.querySelectorAll('.category-filter-btn').forEach(btn => {
+      btn.classList.remove('active');
+    });
+    event.target.closest('.category-filter-btn').classList.add('active');
+  }
+  
+  if (categoryId === 'all') {
+    foods = [...allFoods];
+  } else {
+    foods = allFoods.filter(f => String(f.category_id) === String(categoryId));
+  }
+  
+  renderFoods();
+  
+  const categoryName = categoryId === 'all' ? 'All items' : 
+    document.querySelector(`.category-filter-btn[data-category-id="${categoryId}"]`)?.textContent?.trim() || 'Category';
+  showToast(`Showing: ${categoryName}`);
+}
