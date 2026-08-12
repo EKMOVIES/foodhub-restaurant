@@ -1,6 +1,50 @@
 let foods = [];
-let cart = JSON.parse(localStorage.getItem("cart") || "[]").map(item => ({ ...item, foodId: String(item.foodId) }));
+let cart = [];
 let token = localStorage.getItem("token");
+let currentUserId = null;
+
+function getCartStorageKey() {
+  return currentUserId ? `foodhub_cart_user_${currentUserId}` : "foodhub_cart_guest";
+}
+
+function normalizeCart(items) {
+  return (Array.isArray(items) ? items : []).map(item => ({
+    ...item,
+    foodId: String(item.foodId),
+    quantity: Number(item.quantity) || 0
+  })).filter(item => item.quantity > 0);
+}
+
+function mergeCarts(base, extra) {
+  const merged = normalizeCart(base);
+  for (const item of normalizeCart(extra)) {
+    const existing = merged.find(x => String(x.foodId) === String(item.foodId));
+    if (existing) existing.quantity += item.quantity;
+    else merged.push({ ...item });
+  }
+  return merged;
+}
+
+function loadCartForUser(userId) {
+  currentUserId = String(userId);
+  const userKey = getCartStorageKey();
+  const savedUserCart = normalizeCart(JSON.parse(localStorage.getItem(userKey) || "[]"));
+  const guestCart = normalizeCart(JSON.parse(localStorage.getItem("foodhub_cart_guest") || "[]"));
+  const legacyCart = normalizeCart(JSON.parse(localStorage.getItem("cart") || "[]"));
+
+  // Keep carts from the previous version and any guest cart when the user logs in.
+  cart = mergeCarts(savedUserCart, mergeCarts(guestCart, legacyCart));
+  localStorage.setItem(userKey, JSON.stringify(cart));
+  localStorage.removeItem("foodhub_cart_guest");
+  localStorage.removeItem("cart");
+  updateCartCount();
+}
+
+function clearCurrentCartFromMemory() {
+  cart = [];
+  currentUserId = null;
+  updateCartCount();
+}
 
 const foodGrid = document.getElementById("foodGrid");
 const modal = document.getElementById("modal");
@@ -45,7 +89,7 @@ function renderFoods() {
 }
 
 function saveCart() {
-  localStorage.setItem("cart", JSON.stringify(cart));
+  localStorage.setItem(getCartStorageKey(), JSON.stringify(normalizeCart(cart)));
   updateCartCount();
 }
 
@@ -213,7 +257,7 @@ async function signup(event) {
 
     token = result.token;
     localStorage.setItem("token", token);
-    updateAuthUI();
+    await updateAuthUI();
     closeModal();
     showToast("Account created!");
   } catch (error) {
@@ -235,7 +279,7 @@ async function login(event) {
 
     token = result.token;
     localStorage.setItem("token", token);
-    updateAuthUI();
+    await updateAuthUI();
     closeModal();
     showToast("Welcome back!");
   } catch (error) {
@@ -244,8 +288,13 @@ async function login(event) {
 }
 
 function logout() {
+  // Keep this user's cart saved, but remove it from the active session.
+  if (currentUserId) {
+    localStorage.setItem(getCartStorageKey(), JSON.stringify(normalizeCart(cart)));
+  }
   token = null;
   localStorage.removeItem("token");
+  clearCurrentCartFromMemory();
   updateAuthUI();
   showToast("Logged out.");
 }
@@ -263,6 +312,9 @@ async function updateAuthUI() {
 
   try {
     const user = await api("/api/me");
+    const userId = user.id ?? user.userId ?? user.email;
+    if (userId == null) throw new Error("Could not identify the logged-in user.");
+    loadCartForUser(userId);
     welcome.textContent = `Hi, ${user.name}`;
     loginBtn.classList.add("hidden");
     logoutBtn.classList.remove("hidden");
@@ -406,6 +458,7 @@ modal.addEventListener("click", event => {
   if (event.target === modal) closeModal();
 });
 
+cart = normalizeCart(JSON.parse(localStorage.getItem("foodhub_cart_guest") || localStorage.getItem("cart") || "[]"));
 updateCartCount();
 updateAuthUI();
 loadFoods().catch(error => {
