@@ -464,3 +464,91 @@ updateAuthUI();
 loadFoods().catch(error => {
   foodGrid.innerHTML = `<p>Could not load menu: ${error.message}</p>`;
 });
+
+
+// ===== HERO SLIDESHOW =====
+let slideIndex = 0;
+let slideTimer = null;
+const slides = document.querySelectorAll('.slide');
+const dots = document.querySelectorAll('.dot');
+
+function showSlide(index) {
+  // Ensure index is within bounds
+  if (index < 0) index = slides.length - 1;
+  if (index >= slides.length) index = 0;
+  slideIndex = index;
+
+  // Hide all slides
+  slides.forEach(slide => {
+    slide.classList.remove('active');
+  });
+
+  // Remove active class from all dots
+  dots.forEach(dot => {
+    dot.classList.remove('active');
+  });
+
+  // Show current slide and activate dot
+  slides[index].classList.add('active');
+  if (dots[index]) {
+    dots[index].classList.add('active');
+  }
+}
+
+function changeSlide(direction) {
+  // Clear existing timer
+  if (slideTimer) {
+    clearInterval(slideTimer);
+  }
+
+  // Change slide
+  showSlide(slideIndex + direction);
+
+  // Restart timer
+  startSlideTimer();
+}
+
+function currentSlide(index) {
+  // Clear existing timer
+  if (slideTimer) {
+    clearInterval(slideTimer);
+  }
+
+  // Go to specific slide
+  showSlide(index);
+
+  // Restart timer
+  startSlideTimer();
+}
+
+function startSlideTimer() {
+  // Auto advance every 4 seconds
+  slideTimer = setInterval(() => {
+    showSlide(slideIndex + 1);
+  }, 4000);
+}
+
+// Initialize slideshow when DOM is ready
+function initSlideshow() {
+  if (slides.length > 0 && dots.length > 0) {
+    // Start with first slide
+    showSlide(0);
+    
+    // Start auto rotation
+    startSlideTimer();
+  }
+}
+
+// Initialize after page loads
+document.addEventListener('DOMContentLoaded', function() {
+  // Your existing code...
+  
+  // Initialize slideshow
+  initSlideshow();
+});
+
+// If DOM is already loaded, initialize immediately
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+  // Wait a tiny bit to ensure slides are in DOM
+  setTimeout(initSlideshow, 100);
+}
