@@ -21,12 +21,55 @@
   </header>
 
   <main class="container">
-    <section class="hero">
-      <div>
-        <p class="eyebrow">Fresh • Fast • Delicious</p>
-        <h2>Good food, delivered to your door.</h2>
-        <p>Choose your favourite food, add it to your cart and place your order.</p>
-        <button onclick="document.getElementById('menu').scrollIntoView({behavior:'smooth'})">Explore Menu</button>
+     <!-- Hero Slideshow -->
+    <section class="hero-slideshow">
+      <div class="slideshow-container">
+        <!-- Slide 1 -->
+        <div class="slide fade">
+          <div class="slide-bg" style="background-image: url('https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1400')">
+            <div class="slide-content">
+              <p class="eyebrow">Fresh • Fast • Delicious</p>
+              <h2>Good food, delivered to your door.</h2>
+              <p>Choose your favourite food, add it to your cart and place your order.</p>
+              <button onclick="document.getElementById('menu').scrollIntoView({behavior:'smooth'})">Explore Menu</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Slide 2 -->
+        <div class="slide fade">
+          <div class="slide-bg" style="background-image: url('https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=1400')">
+            <div class="slide-content">
+              <p class="eyebrow">Premium Quality</p>
+              <h2>Fresh ingredients, authentic taste.</h2>
+              <p>Every dish is prepared with care using the finest ingredients.</p>
+              <button onclick="document.getElementById('menu').scrollIntoView({behavior:'smooth'})">Order Now</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Slide 3 -->
+        <div class="slide fade">
+          <div class="slide-bg" style="background-image: url('https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=1400')">
+            <div class="slide-content">
+              <p class="eyebrow">Special Offer</p>
+              <h2>Get 20% off on your first order!</h2>
+              <p>Use code FIRST20 at checkout. Limited time offer.</p>
+              <button onclick="document.getElementById('menu').scrollIntoView({behavior:'smooth'})">Grab Deal</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Navigation Dots -->
+        <div class="dots-container">
+          <span class="dot" onclick="currentSlide(0)"></span>
+          <span class="dot" onclick="currentSlide(1)"></span>
+          <span class="dot" onclick="currentSlide(2)"></span>
+        </div>
+
+        <!-- Next/Prev Buttons -->
+        <button class="prev-btn" onclick="changeSlide(-1)">&#10094;</button>
+        <button class="next-btn" onclick="changeSlide(1)">&#10095;</button>
       </div>
     </section>
 
