@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FoodHub Restaurant</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <div class="container nav">
+      <h1>FoodHub</h1>
+      <div class="nav-actions">
+        <span id="welcome"></span>
+        <button id="ordersBtn" class="secondary hidden">My Orders</button><button id="chatBtn" class="secondary hidden">Chat</button>
+        <button id="loginBtn">Login</button>
+        <button id="logoutBtn" class="secondary hidden">Logout</button>
+        <button id="cartBtn">Cart (<span id="cartCount">0</span>)</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Fresh • Fast • Delicious</p>
+        <h2>Good food, delivered to your door.</h2>
+        <p>Choose your favourite food, add it to your cart and place your order.</p>
+        <button onclick="document.getElementById('menu').scrollIntoView({behavior:'smooth'})">Explore Menu</button>
+      </div>
+    </section>
+
+    <section id="menu">
+      <div class="section-heading">
+        <h2>Our Menu</h2>
+        <p>Freshly prepared favourites.</p>
+      </div>
+      <div id="foodGrid" class="food-grid"></div>
+    </section>
+  </main>
+
+  <div id="modal" class="modal hidden">
+    <div class="modal-card">
+      <button class="close" onclick="closeModal()">×</button>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div><button id="floatingChat" class="floating-chat hidden">💬 Chat</button>
+
+  <script src="app.js"></script>
+</body>
+</html>

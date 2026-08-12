@@ -1,0 +1,200 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #f7f8fa;
+  color: #17202a;
+}
+
+.container {
+  width: min(1100px, 92%);
+  margin: auto;
+}
+
+header {
+  background: #0b6b57;
+  color: white;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.nav {
+  min-height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.nav h1 { margin: 0; }
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+button {
+  border: 0;
+  border-radius: 8px;
+  padding: 11px 16px;
+  cursor: pointer;
+  background: #f39c12;
+  color: #fff;
+  font-weight: 700;
+}
+
+button.secondary {
+  background: #145f50;
+  border: 1px solid rgba(255,255,255,.35);
+}
+
+button.danger { background: #d9534f; }
+
+.hero {
+  margin: 28px 0 50px;
+  padding: 65px 8%;
+  min-height: 360px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  background: linear-gradient(120deg, rgba(0,0,0,.7), rgba(0,0,0,.2)),
+    url("https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1400") center/cover;
+  color: white;
+}
+
+.hero h2 {
+  font-size: clamp(34px, 6vw, 62px);
+  max-width: 700px;
+  margin: 10px 0;
+}
+
+.hero p { max-width: 600px; font-size: 18px; line-height: 1.6; }
+.eyebrow { text-transform: uppercase; letter-spacing: 2px; }
+
+.section-heading { margin-bottom: 20px; }
+
+.food-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 22px;
+  padding-bottom: 60px;
+}
+
+.food-card {
+  background: white;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 4px 18px rgba(0,0,0,.08);
+}
+
+.food-card img {
+  width: 100%;
+  height: 190px;
+  object-fit: cover;
+}
+
+.food-body { padding: 16px; }
+.food-body h3 { margin: 0 0 8px; }
+.food-body p { color: #69737d; min-height: 45px; }
+.price { font-size: 20px; font-weight: 800; margin: 12px 0; }
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  display: grid;
+  place-items: center;
+  z-index: 20;
+  padding: 20px;
+}
+
+.modal-card {
+  width: min(560px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  background: white;
+  border-radius: 16px;
+  padding: 25px;
+  position: relative;
+}
+
+.close {
+  position: absolute;
+  right: 14px;
+  top: 12px;
+  background: transparent;
+  color: #333;
+  font-size: 28px;
+  padding: 0 8px;
+}
+
+input, textarea {
+  width: 100%;
+  padding: 12px;
+  margin: 7px 0 13px;
+  border: 1px solid #d4d8dc;
+  border-radius: 8px;
+  font: inherit;
+}
+
+.cart-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.qty {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.qty button {
+  padding: 5px 9px;
+}
+
+.total {
+  font-size: 21px;
+  font-weight: 800;
+  margin: 18px 0;
+}
+
+.order-card {
+  background: #f5f7f8;
+  padding: 15px;
+  border-radius: 10px;
+  margin: 12px 0;
+}
+
+.hidden { display: none !important; }
+
+.toast {
+  position: fixed;
+  bottom: 25px;
+  right: 25px;
+  background: #222;
+  color: white;
+  padding: 12px 18px;
+  border-radius: 8px;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: .25s;
+  z-index: 50;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (max-width: 650px) {
+  .nav { padding: 12px 0; }
+  .hero { padding: 35px 25px; }
+}
+.floating-chat{position:fixed;right:22px;bottom:22px;z-index:15;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.18)}.chat-messages{height:330px;overflow:auto;background:#f5f7f8;border-radius:10px;padding:12px;margin:15px 0}.chat-message{max-width:78%;padding:10px 12px;border-radius:12px;margin:8px 0;line-height:1.45}.chat-message small{display:block;opacity:.6;margin-top:5px;font-size:10px}.admin-msg{background:#e6f3ef;margin-right:auto}.user-msg{background:#0b6b57;color:white;margin-left:auto}.chat-form{display:flex;gap:8px}.chat-form input{margin:0}@media(max-width:650px){.chat-form{flex-direction:column}}

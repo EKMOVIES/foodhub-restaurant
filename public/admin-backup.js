@@ -1,0 +1,385 @@
+let token = localStorage.getItem('adminToken');
+let foods = [];
+let selectedUser = null;
+let poller = null;
+
+const $ = id => document.getElementById(id);
+
+async function api(url, opt = {}) {
+  const h = { 'Content-Type': 'application/json' };
+  if (token) h.Authorization = 'Bearer ' + token;
+
+  const r = await fetch(url, { ...opt, headers: h });
+  const d = await r.json().catch(() => ({}));
+
+  if (!r.ok) throw Error(d.message || 'Request failed');
+  return d;
+}
+
+function esc(v) {
+  return String(v).replace(/[&<>"']/g, c => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  }[c]));
+}
+
+async function login(e) {
+  e.preventDefault();
+  $('error').textContent = '';
+
+  try {
+    const d = await api('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: $('email').value,
+        password: $('password').value
+      })
+    });
+
+    if (d.user.role !== 'admin') {
+      throw Error('This account is not an admin.');
+    }
+
+    token = d.token;
+    localStorage.setItem('adminToken', token);
+    await show();
+  } catch (e) {
+    $('error').textContent = e.message;
+  }
+}
+
+async function show() {
+  try {
+    const me = await api('/api/me');
+
+    if (me.role !== 'admin') {
+      throw Error('Admin access required.');
+    }
+
+    $('login').classList.add('hidden');
+    $('dash').classList.remove('hidden');
+
+    await Promise.all([
+      stats(),
+      loadFoods(),
+      loadOrders(),
+      loadUsers(),
+      loadChats()
+    ]);
+
+    if (poller) clearInterval(poller);
+
+    poller = setInterval(async () => {
+      try {
+        await loadChats();
+        await refreshSelectedChat();
+      } catch {}
+    }, 3000);
+
+  } catch (e) {
+    localStorage.removeItem('adminToken');
+    token = null;
+    $('error').textContent = e.message;
+  }
+}
+
+async function stats() {
+  const s = await api('/api/admin/stats');
+  $('foodsN').textContent = s.foods;
+  $('ordersN').textContent = s.orders;
+  $('customersN').textContent = s.customers;
+  $('revenueN').textContent = '৳' + Number(s.revenue).toFixed(2);
+}
+
+async function loadFoods() {
+  foods = await api('/api/foods');
+
+  $('foodList').innerHTML = foods.map(f => `
+    <article class="food">
+      <img src="${esc(f.image)}" alt="${esc(f.name)}">
+      <div class="foodbody">
+        <h3>${esc(f.name)}</h3>
+        <p>${esc(f.description)}</p>
+        <b>৳${Number(f.price).toFixed(2)}</b>
+        <div class="actions">
+          <button type="button" onclick="editFood(${f.id})">Edit</button>
+          <button type="button" class="delete" onclick="delFood(${f.id})">Delete</button>
+        </div>
+      </div>
+    </article>
+  `).join('');
+}
+
+async function loadOrders() {
+  const os = await api('/api/admin/orders');
+
+  $('orderList').innerHTML = os.length
+    ? os.map(o => `
+      <div class="order">
+        <div class="orderTop">
+          <div>
+            <h3>Order #${o.id}</h3>
+            <b>${esc(o.customer_name)}</b> — ${esc(o.customer_email)}
+            <div>Phone: ${esc(o.phone)}</div>
+            <div>Address: ${esc(o.address)}</div>
+          </div>
+          <b>৳${Number(o.total).toFixed(2)}</b>
+        </div>
+
+        <p>Items: ${o.items.map(i => `${esc(i.food_name)} × ${i.quantity}`).join(', ')}</p>
+
+        <select onchange="status(${o.id}, this.value)">
+          ${['Pending', 'Confirmed', 'Preparing', 'Out for Delivery', 'Delivered', 'Cancelled']
+            .map(s => `<option ${s === o.status ? 'selected' : ''}>${s}</option>`)
+            .join('')}
+        </select>
+
+        <small> Current: ${esc(o.status)} | ${esc(o.created_at)}</small>
+      </div>
+    `).join('')
+    : '<p>No orders yet.</p>';
+}
+
+async function loadUsers() {
+  const us = await api('/api/admin/users');
+
+  $('userList').innerHTML = us.length
+    ? `
+      <div class="tableWrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Role</th>
+              <th>Orders</th>
+              <th>Spent</th>
+              <th>Messages</th>
+              <th>Joined</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${us.map(u => `
+              <tr>
+                <td>${esc(u.name)}</td>
+                <td>${esc(u.email)}</td>
+                <td>${esc(u.role)}</td>
+                <td>${u.order_count}</td>
+                <td>৳${Number(u.total_spent).toFixed(2)}</td>
+                <td>${u.message_count}</td>
+                <td>${esc(u.created_at)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `
+    : '<p>No users found.</p>';
+}
+
+async function loadChats() {
+  const cs = await api('/api/admin/chats');
+  const list = $('chatList');
+
+  const html = cs.length
+    ? cs.map(c => `
+      <button
+        type="button"
+        class="chatItem ${Number(selectedUser) === Number(c.user_id) ? 'active' : ''}"
+        data-user-id="${c.user_id}"
+      >
+        <strong>${esc(c.name)}</strong>
+        <small>${esc(c.email)}</small>
+        <span>${esc(c.last_message || 'No messages yet')}</span>
+      </button>
+    `).join('')
+    : '<p>No conversations yet.</p>';
+
+  // Do not rebuild the list if nothing changed.
+  if (list.innerHTML !== html) {
+    list.innerHTML = html;
+  }
+}
+
+async function loadChat(uid, silent = false) {
+  selectedUser = Number(uid);
+
+  const d = await api('/api/admin/chats/' + selectedUser);
+
+  $('chatTitle').textContent = d.user.name + ' — ' + d.user.email;
+
+  renderAdminMessages(d.messages, true);
+
+  const form = $('adminChatForm');
+  form.classList.remove('hidden');
+  form.dataset.uid = String(selectedUser);
+
+  if (!silent) {
+    await loadChats();
+  }
+}
+
+function renderAdminMessages(messages, forceBottom = false) {
+  const box = $('adminMessages');
+
+  const nearBottom =
+    box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+
+  const html = messages.length
+    ? messages.map(m => `
+      <div class="chat-message ${m.sender_role === 'admin' ? 'admin-msg' : 'user-msg'}">
+        <div>${esc(m.message)}</div>
+        <small>${esc(m.created_at)}</small>
+      </div>
+    `).join('')
+    : '<p>No messages yet.</p>';
+
+  if (box.innerHTML !== html) {
+    box.innerHTML = html;
+  }
+
+  if (forceBottom || nearBottom) {
+    box.scrollTop = box.scrollHeight;
+  }
+}
+
+async function refreshSelectedChat() {
+  if (!selectedUser) return;
+
+  const input = $('adminChatInput');
+
+  // Do not interfere with the admin while typing.
+  const isTyping = document.activeElement === input;
+
+  const d = await api('/api/admin/chats/' + selectedUser);
+
+  renderAdminMessages(d.messages, false);
+
+  if (isTyping) {
+    input.focus();
+  }
+}
+
+async function sendAdmin(e) {
+  e.preventDefault();
+
+  const form = $('adminChatForm');
+  const uid = form.dataset.uid;
+  const input = $('adminChatInput');
+  const message = input.value.trim();
+
+  if (!uid || !message) return;
+
+  input.disabled = true;
+
+  try {
+    await api('/api/admin/chats/' + uid + '/messages', {
+      method: 'POST',
+      body: JSON.stringify({ message })
+    });
+
+    input.value = '';
+    await loadChat(Number(uid), true);
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    input.disabled = false;
+    input.focus();
+  }
+}
+
+function openFood(f = null) {
+  $('formTitle').textContent = f ? 'Edit Food' : 'Add Food';
+  $('foodId').value = f?.id || '';
+  $('foodName').value = f?.name || '';
+  $('foodDesc').value = f?.description || '';
+  $('foodPrice').value = f?.price || '';
+  $('foodImage').value = f?.image || '';
+  $('modal').classList.remove('hidden');
+}
+
+function closeFood() {
+  $('modal').classList.add('hidden');
+}
+
+function editFood(id) {
+  openFood(foods.find(f => f.id === id));
+}
+
+async function saveFood(e) {
+  e.preventDefault();
+
+  const id = $('foodId').value;
+
+  const body = {
+    name: $('foodName').value,
+    description: $('foodDesc').value,
+    price: Number($('foodPrice').value),
+    image: $('foodImage').value
+  };
+
+  try {
+    await api(
+      id ? '/api/admin/foods/' + id : '/api/admin/foods',
+      {
+        method: id ? 'PUT' : 'POST',
+        body: JSON.stringify(body)
+      }
+    );
+
+    closeFood();
+    await Promise.all([loadFoods(), stats()]);
+    alert('Saved.');
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function delFood(id) {
+  if (!confirm('Delete this food?')) return;
+
+  try {
+    await api('/api/admin/foods/' + id, { method: 'DELETE' });
+    await Promise.all([loadFoods(), stats()]);
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function status(id, s) {
+  try {
+    await api('/api/admin/orders/' + id + '/status', {
+      method: 'PATCH',
+      body: JSON.stringify({ status: s })
+    });
+
+    await Promise.all([loadOrders(), stats()]);
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+// Event listeners
+$('loginForm').addEventListener('submit', login);
+$('foodForm').addEventListener('submit', saveFood);
+$('adminChatForm').addEventListener('submit', sendAdmin);
+
+$('chatList').addEventListener('click', e => {
+  const button = e.target.closest('.chatItem');
+  if (!button) return;
+
+  loadChat(Number(button.dataset.userId)).catch(err => alert(err.message));
+});
+
+$('logout').addEventListener('click', () => {
+  if (poller) clearInterval(poller);
+  localStorage.removeItem('adminToken');
+  location.reload();
+});
+
+if (token) {
+  show();
+}

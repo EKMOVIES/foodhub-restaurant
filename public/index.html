@@ -10,9 +10,21 @@
   <header>
     <div class="container nav">
       <h1>FoodHub</h1>
+      
+      <!-- Search Bar -->
+      <div class="search-container">
+        <div class="search-wrapper">
+          <input type="text" id="searchInput" placeholder="Search for food..." autocomplete="off">
+          <button id="searchBtn" class="search-btn">🔍</button>
+          <button id="clearSearchBtn" class="clear-search-btn hidden">✕</button>
+        </div>
+        <div id="searchResults" class="search-results"></div>
+      </div>
+
       <div class="nav-actions">
         <span id="welcome"></span>
-        <button id="ordersBtn" class="secondary hidden">My Orders</button><button id="chatBtn" class="secondary hidden">Chat</button>
+        <button id="ordersBtn" class="secondary hidden">My Orders</button>
+        <button id="chatBtn" class="secondary hidden">Chat</button>
         <button id="loginBtn">Login</button>
         <button id="logoutBtn" class="secondary hidden">Logout</button>
         <button id="cartBtn">Cart (<span id="cartCount">0</span>)</button>
@@ -21,11 +33,11 @@
   </header>
 
   <main class="container">
-     <!-- Hero Slideshow -->
+    <!-- Hero Slideshow -->
     <section class="hero-slideshow">
       <div class="slideshow-container">
         <!-- Slide 1 -->
-        <div class="slide fade">
+        <div class="slide fade active">
           <div class="slide-bg" style="background-image: url('https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1400')">
             <div class="slide-content">
               <p class="eyebrow">Fresh • Fast • Delicious</p>
@@ -62,7 +74,7 @@
 
         <!-- Navigation Dots -->
         <div class="dots-container">
-          <span class="dot" onclick="currentSlide(0)"></span>
+          <span class="dot active" onclick="currentSlide(0)"></span>
           <span class="dot" onclick="currentSlide(1)"></span>
           <span class="dot" onclick="currentSlide(2)"></span>
         </div>
@@ -82,6 +94,7 @@
     </section>
   </main>
 
+  <!-- Main Modal -->
   <div id="modal" class="modal hidden">
     <div class="modal-card">
       <button class="close" onclick="closeModal()">×</button>
@@ -89,7 +102,18 @@
     </div>
   </div>
 
-  <div id="toast" class="toast"></div><button id="floatingChat" class="floating-chat hidden">💬 Chat</button>
+  <!-- Product Detail Modal -->
+  <div id="productModal" class="modal hidden">
+    <div class="modal-card product-detail-card">
+      <button class="close" onclick="closeProductModal()">×</button>
+      <div id="productDetailContent">
+        <!-- Dynamic content will be loaded here -->
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <button id="floatingChat" class="floating-chat hidden">💬 Chat</button>
 
   <footer class="site-footer">
     <div class="container footer-grid">

@@ -32,7 +32,6 @@ function loadCartForUser(userId) {
   const guestCart = normalizeCart(JSON.parse(localStorage.getItem("foodhub_cart_guest") || "[]"));
   const legacyCart = normalizeCart(JSON.parse(localStorage.getItem("cart") || "[]"));
 
-  // Keep carts from the previous version and any guest cart when the user logs in.
   cart = mergeCarts(savedUserCart, mergeCarts(guestCart, legacyCart));
   localStorage.setItem(userKey, JSON.stringify(cart));
   localStorage.removeItem("foodhub_cart_guest");
@@ -70,22 +69,38 @@ async function api(url, options = {}) {
 }
 
 async function loadFoods() {
-  foods = await api("/api/foods");
-  renderFoods();
+  try {
+    const response = await fetch('/api/foods');
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    foods = data;
+    renderFoods();
+    console.log('Foods loaded successfully:', foods.length);
+    return foods;
+  } catch (error) {
+    console.error('Error loading foods:', error);
+    foodGrid.innerHTML = `<p>Could not load menu: ${error.message}</p>`;
+    throw error;
+  }
 }
 
 function renderFoods() {
-  foodGrid.innerHTML = foods.map(food => `
-    <article class="food-card">
-      <img src="${food.image}" alt="${food.name}">
-      <div class="food-body">
-        <h3>${food.name}</h3>
-        <p>${food.description}</p>
-        <div class="price">৳${food.price.toFixed(2)}</div>
-        <button onclick="addToCart(${food.id})">Add to Cart</button>
-      </div>
-    </article>
-  `).join("");
+  foodGrid.innerHTML = foods.map(food => {
+    const foodId = food.id;
+    return `
+      <article class="food-card" onclick="showProductDetail(${foodId})">
+        <img src="${food.image}" alt="${food.name}">
+        <div class="food-body">
+          <h3>${food.name}</h3>
+          <p>${food.description}</p>
+          <div class="price">৳${food.price.toFixed(2)}</div>
+          <button onclick="event.stopPropagation(); addToCart(${foodId})">Add to Cart</button>
+        </div>
+      </article>
+    `;
+  }).join("");
 }
 
 function saveCart() {
@@ -138,14 +153,14 @@ function showCart() {
     <h2>Your Cart</h2>
     ${items.length ? items.map(item => `
       <div class="cart-item">
-        <div>
+        <div class="item-name" onclick="showProductDetail(${item.id})">
           <strong>${item.name}</strong><br>
           ৳${item.price} × ${item.quantity}
         </div>
         <div class="qty">
-          <button onclick="changeQty(${item.id}, -1)">−</button>
+          <button onclick="event.stopPropagation(); changeQty(${item.id}, -1)">−</button>
           <span>${item.quantity}</span>
-          <button onclick="changeQty(${item.id}, 1)">+</button>
+          <button onclick="event.stopPropagation(); changeQty(${item.id}, 1)">+</button>
         </div>
       </div>
     `).join("") : "<p>Your cart is empty.</p>"}
@@ -288,7 +303,6 @@ async function login(event) {
 }
 
 function logout() {
-  // Keep this user's cart saved, but remove it from the active session.
   if (currentUserId) {
     localStorage.setItem(getCartStorageKey(), JSON.stringify(normalizeCart(cart)));
   }
@@ -465,7 +479,6 @@ loadFoods().catch(error => {
   foodGrid.innerHTML = `<p>Could not load menu: ${error.message}</p>`;
 });
 
-
 // ===== HERO SLIDESHOW =====
 let slideIndex = 0;
 let slideTimer = null;
@@ -473,22 +486,18 @@ const slides = document.querySelectorAll('.slide');
 const dots = document.querySelectorAll('.dot');
 
 function showSlide(index) {
-  // Ensure index is within bounds
   if (index < 0) index = slides.length - 1;
   if (index >= slides.length) index = 0;
   slideIndex = index;
 
-  // Hide all slides
   slides.forEach(slide => {
     slide.classList.remove('active');
   });
 
-  // Remove active class from all dots
   dots.forEach(dot => {
     dot.classList.remove('active');
   });
 
-  // Show current slide and activate dot
   slides[index].classList.add('active');
   if (dots[index]) {
     dots[index].classList.add('active');
@@ -496,59 +505,363 @@ function showSlide(index) {
 }
 
 function changeSlide(direction) {
-  // Clear existing timer
   if (slideTimer) {
     clearInterval(slideTimer);
   }
-
-  // Change slide
   showSlide(slideIndex + direction);
-
-  // Restart timer
   startSlideTimer();
 }
 
 function currentSlide(index) {
-  // Clear existing timer
   if (slideTimer) {
     clearInterval(slideTimer);
   }
-
-  // Go to specific slide
   showSlide(index);
-
-  // Restart timer
   startSlideTimer();
 }
 
 function startSlideTimer() {
-  // Auto advance every 4 seconds
   slideTimer = setInterval(() => {
     showSlide(slideIndex + 1);
   }, 4000);
 }
 
-// Initialize slideshow when DOM is ready
 function initSlideshow() {
   if (slides.length > 0 && dots.length > 0) {
-    // Start with first slide
     showSlide(0);
-    
-    // Start auto rotation
     startSlideTimer();
   }
 }
 
-// Initialize after page loads
 document.addEventListener('DOMContentLoaded', function() {
-  // Your existing code...
-  
-  // Initialize slideshow
   initSlideshow();
 });
 
-// If DOM is already loaded, initialize immediately
 if (document.readyState === 'complete' || document.readyState === 'interactive') {
-  // Wait a tiny bit to ensure slides are in DOM
   setTimeout(initSlideshow, 100);
 }
+
+// ===== SEARCH FUNCTIONALITY =====
+const searchInput = document.getElementById('searchInput');
+const searchResults = document.getElementById('searchResults');
+const clearSearchBtn = document.getElementById('clearSearchBtn');
+const searchBtn = document.getElementById('searchBtn');
+let searchDebounceTimer = null;
+
+function performSearch(query) {
+  try {
+    if (!query || query.trim().length === 0) {
+      hideSearchResults();
+      return;
+    }
+
+    const searchTerm = query.trim().toLowerCase();
+    
+    if (!foods || foods.length === 0) {
+      console.warn('Foods not loaded yet');
+      loadFoods().then(() => {
+        performSearch(query);
+      }).catch(err => {
+        console.error('Failed to reload foods:', err);
+      });
+      return;
+    }
+
+    console.log('Searching for:', searchTerm, 'Total foods:', foods.length);
+    
+    const results = foods.filter(food => {
+      const nameMatch = food.name.toLowerCase().includes(searchTerm);
+      const descMatch = food.description.toLowerCase().includes(searchTerm);
+      return nameMatch || descMatch;
+    });
+
+    console.log('Found results:', results.length);
+    displaySearchResults(results, searchTerm);
+  } catch (error) {
+    console.error('Search error:', error);
+  }
+}
+
+function displaySearchResults(results, searchTerm) {
+  try {
+    if (!searchResults) {
+      console.error('searchResults element not found!');
+      return;
+    }
+
+    if (results.length === 0) {
+      searchResults.innerHTML = `
+        <div class="search-no-result">
+          <span>🍽️</span>
+          <p>No food items found for "<strong>${escapeHtml(searchTerm)}</strong>"</p>
+          <small>Try searching with different keywords</small>
+        </div>
+      `;
+      searchResults.classList.add('visible');
+      console.log('Showing no results message');
+      return;
+    }
+
+    searchResults.innerHTML = results.map(food => {
+      const foodId = food.id;
+      return `
+        <div class="search-result-item" onclick="showProductDetail(${foodId})">
+          <img src="${food.image}" alt="${food.name}" loading="lazy" onerror="this.src='https://via.placeholder.com/45'">
+          <div class="search-result-info">
+            <div class="name">${highlightMatch(food.name, searchTerm)}</div>
+            <div class="desc">${highlightMatch(food.description, searchTerm)}</div>
+            <div class="price">৳${food.price.toFixed(2)}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    searchResults.classList.add('visible');
+    console.log('Search results displayed, count:', results.length);
+  } catch (error) {
+    console.error('Display error:', error);
+  }
+}
+
+function highlightMatch(text, term) {
+  if (!text || !term) return text || '';
+  try {
+    const safeTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${safeTerm})`, 'gi');
+    return text.replace(regex, '<mark style="background:#f39c12; color:white; padding:0 3px; border-radius:3px;">$1</mark>');
+  } catch (e) {
+    return text;
+  }
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function hideSearchResults() {
+  if (searchResults) {
+    searchResults.classList.remove('visible');
+    console.log('Search results hidden');
+  }
+}
+
+if (searchInput) {
+  searchInput.addEventListener('input', function(e) {
+    try {
+      const query = this.value;
+      
+      if (query.length > 0) {
+        clearSearchBtn.classList.remove('hidden');
+      } else {
+        clearSearchBtn.classList.add('hidden');
+        hideSearchResults();
+        return;
+      }
+
+      if (searchDebounceTimer) {
+        clearTimeout(searchDebounceTimer);
+      }
+
+      searchDebounceTimer = setTimeout(() => {
+        performSearch(query);
+      }, 300);
+    } catch (error) {
+      console.error('Input handler error:', error);
+    }
+  });
+
+  searchInput.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const query = this.value.trim();
+      if (query) {
+        performSearch(query);
+        if (searchResults) {
+          searchResults.classList.add('visible');
+        }
+      }
+    }
+  });
+
+  searchInput.addEventListener('focus', function() {
+    const query = this.value.trim();
+    if (query) {
+      performSearch(query);
+    }
+  });
+}
+
+if (clearSearchBtn) {
+  clearSearchBtn.addEventListener('click', function() {
+    searchInput.value = '';
+    this.classList.add('hidden');
+    hideSearchResults();
+    searchInput.focus();
+    document.querySelectorAll('.food-card.highlight').forEach(el => {
+      el.classList.remove('highlight');
+    });
+  });
+}
+
+if (searchBtn) {
+  searchBtn.addEventListener('click', function() {
+    const query = searchInput.value.trim();
+    if (query) {
+      performSearch(query);
+      if (searchResults) {
+        searchResults.classList.add('visible');
+      }
+    }
+  });
+}
+
+document.addEventListener('click', function(e) {
+  const searchContainer = document.querySelector('.search-container');
+  if (searchContainer && !searchContainer.contains(e.target)) {
+    hideSearchResults();
+  }
+});
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    hideSearchResults();
+    if (searchInput) searchInput.blur();
+  }
+});
+
+if (searchResults) {
+  searchResults.addEventListener('click', function(e) {
+    e.stopPropagation();
+  });
+}
+
+function initSearch() {
+  try {
+    if (foods && foods.length > 0) {
+      console.log('Search initialized with foods:', foods.length);
+    } else {
+      console.log('Waiting for foods to load...');
+      loadFoods().then(() => {
+        console.log('Foods loaded for search:', foods.length);
+      }).catch(err => {
+        console.error('Failed to load foods for search:', err);
+      });
+    }
+  } catch (error) {
+    console.error('Init search error:', error);
+  }
+}
+
+setTimeout(initSearch, 500);
+
+window.testSearch = function(query) {
+  performSearch(query);
+};
+
+// ===== PRODUCT DETAIL FUNCTIONALITY (FIXED) =====
+const productModal = document.getElementById('productModal');
+const productDetailContent = document.getElementById('productDetailContent');
+
+function showProductDetail(foodId) {
+  try {
+    console.log('showProductDetail called with:', foodId, 'Type:', typeof foodId);
+    
+    // Try multiple ways to find the food
+    let food = null;
+    
+    // 1. Try exact match
+    food = foods.find(f => f.id === foodId);
+    
+    // 2. Try string comparison
+    if (!food) {
+      food = foods.find(f => String(f.id) === String(foodId));
+    }
+    
+    // 3. Try number comparison
+    if (!food) {
+      const numId = Number(foodId);
+      food = foods.find(f => Number(f.id) === numId);
+    }
+    
+    if (!food) {
+      console.error('Product not found for ID:', foodId);
+      console.log('Available food IDs:', foods.map(f => ({ id: f.id, type: typeof f.id, name: f.name })));
+      showToast('Product not found!');
+      return;
+    }
+
+    console.log('Found food:', food);
+
+    const related = foods
+      .filter(f => String(f.id) !== String(food.id))
+      .slice(0, 4);
+
+    productDetailContent.innerHTML = `
+      <div class="product-detail">
+        <img src="${food.image}" alt="${food.name}" class="product-detail-image" onerror="this.src='https://via.placeholder.com/600x300'">
+        
+        <div class="product-detail-info">
+          <div class="category">${food.category || 'Popular'}</div>
+          <h2 class="name">${food.name}</h2>
+          <p class="description">${food.description || 'Delicious food item prepared with fresh ingredients.'}</p>
+          <div class="price">৳${food.price.toFixed(2)}</div>
+          
+          <div class="product-detail-actions">
+            <button class="add-to-cart-btn" onclick="addToCartAndCloseDetail(${food.id})">
+              🛒 Add to Cart
+            </button>
+            <button class="close-btn" onclick="closeProductModal()">Close</button>
+          </div>
+        </div>
+        
+        ${related.length > 0 ? `
+          <div class="product-detail-related">
+            <h3>You might also like</h3>
+            <div class="related-grid">
+              ${related.map(item => `
+                <div class="related-item" onclick="showProductDetail(${item.id})">
+                  <img src="${item.image}" alt="${item.name}" onerror="this.src='https://via.placeholder.com/140x80'">
+                  <div class="name">${item.name}</div>
+                  <div class="price">৳${item.price.toFixed(2)}</div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+
+    productModal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+
+  } catch (error) {
+    console.error('Error showing product detail:', error);
+    showToast('Error loading product details');
+  }
+}
+
+function addToCartAndCloseDetail(foodId) {
+  addToCart(foodId);
+  closeProductModal();
+}
+
+function closeProductModal() {
+  productModal.classList.add('hidden');
+  document.body.style.overflow = 'auto';
+}
+
+if (productModal) {
+  productModal.addEventListener('click', function(e) {
+    if (e.target === productModal) {
+      closeProductModal();
+    }
+  });
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && !productModal.classList.contains('hidden')) {
+    closeProductModal();
+  }
+});
