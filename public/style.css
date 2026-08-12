@@ -198,3 +198,63 @@ input, textarea {
   .hero { padding: 35px 25px; }
 }
 .floating-chat{position:fixed;right:22px;bottom:22px;z-index:15;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.18)}.chat-messages{height:330px;overflow:auto;background:#f5f7f8;border-radius:10px;padding:12px;margin:15px 0}.chat-message{max-width:78%;padding:10px 12px;border-radius:12px;margin:8px 0;line-height:1.45}.chat-message small{display:block;opacity:.6;margin-top:5px;font-size:10px}.admin-msg{background:#e6f3ef;margin-right:auto}.user-msg{background:#0b6b57;color:white;margin-left:auto}.chat-form{display:flex;gap:8px}.chat-form input{margin:0}@media(max-width:650px){.chat-form{flex-direction:column}}
+
+/* Footer */
+.site-footer {
+  background: #123f36;
+  color: #fff;
+  margin-top: 30px;
+}
+
+.footer-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 40px;
+  padding: 55px 0 45px;
+}
+
+.footer-logo {
+  font-size: 30px;
+  font-weight: 800;
+  margin-bottom: 12px;
+}
+
+.footer-brand p,
+.footer-column p {
+  margin: 8px 0;
+  line-height: 1.6;
+  color: rgba(255,255,255,.82);
+}
+
+.footer-column h3 {
+  margin: 0 0 16px;
+  font-size: 18px;
+}
+
+.footer-column a {
+  color: rgba(255,255,255,.9);
+  text-decoration: none;
+}
+
+.footer-column a:hover {
+  text-decoration: underline;
+}
+
+.footer-bottom {
+  border-top: 1px solid rgba(255,255,255,.15);
+  padding: 18px 0;
+}
+
+.footer-bottom p {
+  margin: 0;
+  color: rgba(255,255,255,.7);
+  font-size: 14px;
+}
+
+@media (max-width: 650px) {
+  .footer-grid {
+    grid-template-columns: 1fr;
+    gap: 25px;
+    padding: 40px 0 30px;
+  }
+}
