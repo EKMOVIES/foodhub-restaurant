@@ -36,7 +36,6 @@
         <div><small>Revenue</small><b id="revenueN">৳0</b></div>
       </div>
 
-      <!-- Category Management -->
       <section class="card">
         <div class="title">
           <div>
@@ -48,7 +47,6 @@
         <div id="categoryList" class="category-grid"></div>
       </section>
 
-      <!-- Food Management -->
       <section class="card">
         <div class="title">
           <div>
@@ -60,7 +58,6 @@
         <div id="foodList" class="grid"></div>
       </section>
 
-      <!-- Users -->
       <section class="card">
         <div class="title">
           <div>
@@ -71,7 +68,6 @@
         <div id="userList"></div>
       </section>
 
-      <!-- Chat -->
       <section class="card">
         <div class="title">
           <div>
@@ -79,29 +75,19 @@
             <p>Select a customer and reply.</p>
           </div>
         </div>
-
         <div class="chatLayout">
           <div id="chatList" class="chatList"></div>
-
           <div class="adminChat">
             <div id="chatTitle" class="chatTitle">Select a conversation</div>
             <div id="adminMessages" class="chat-messages"></div>
-
             <form id="adminChatForm" class="chat-form hidden">
-              <input
-                id="adminChatInput"
-                maxlength="2000"
-                placeholder="Reply to customer..."
-                autocomplete="off"
-                required
-              >
+              <input id="adminChatInput" maxlength="2000" placeholder="Reply to customer..." autocomplete="off" required>
               <button type="submit">Send</button>
             </form>
           </div>
         </div>
       </section>
 
-      <!-- Orders -->
       <section class="card">
         <h2>Orders</h2>
         <div id="orderList"></div>
@@ -109,7 +95,6 @@
     </section>
   </main>
 
-  <!-- Category Modal -->
   <div id="categoryModal" class="modal hidden">
     <div class="modalCard">
       <button class="close" type="button" onclick="closeCategory()">×</button>
@@ -124,7 +109,6 @@
     </div>
   </div>
 
-  <!-- Food Modal -->
   <div id="modal" class="modal hidden">
     <div class="modalCard">
       <button class="close" type="button" onclick="closeFood()">×</button>
