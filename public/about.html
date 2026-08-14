@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About Us - FoodHub Restaurant</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* ===== ABOUT PAGE SPECIFIC STYLES ===== */
+    .about-hero {
+      background: linear-gradient(135deg, rgba(11, 107, 87, 0.92) 0%, rgba(26, 138, 115, 0.85) 100%),
+                  url('https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=1400');
+      background-size: cover;
+      background-position: center;
+      padding: 80px 0 60px;
+      color: white;
+      text-align: center;
+      border-radius: 0 0 40px 40px;
+      margin-bottom: 50px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .about-hero::before {
+      content: '🍽️';
+      position: absolute;
+      font-size: 200px;
+      opacity: 0.06;
+      right: -20px;
+      bottom: -40px;
+      transform: rotate(-10deg);
+    }
+
+    .about-hero h1 {
+      font-size: 52px;
+      font-weight: 900;
+      margin-bottom: 16px;
+      letter-spacing: -1px;
+      position: relative;
+    }
+
+    .about-hero h1 span {
+      background: linear-gradient(135deg, #f39c12, #e67e22);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .about-hero p {
+      font-size: 20px;
+      opacity: 0.9;
+      max-width: 600px;
+      margin: 0 auto;
+      line-height: 1.7;
+    }
+
+    .about-hero .breadcrumb {
+      margin-top: 20px;
+      font-size: 14px;
+      opacity: 0.7;
+    }
+
+    .about-hero .breadcrumb a {
+      color: white;
+      text-decoration: none;
+    }
+
+    .about-hero .breadcrumb a:hover {
+      color: #f39c12;
+    }
+
+    /* ===== MISSION SECTION ===== */
+    .mission-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 50px;
+      align-items: center;
+      margin-bottom: 60px;
+      padding: 40px;
+      background: white;
+      border-radius: 24px;
+      box-shadow: 0 4px 30px rgba(0,0,0,0.06);
+    }
+
+    .mission-content h2 {
+      font-size: 36px;
+      font-weight: 800;
+      color: #17202a;
+      margin-bottom: 16px;
+    }
+
+    .mission-content h2 span {
+      color: #0b6b57;
+    }
+
+    .mission-content p {
+      color: #69737d;
+      font-size: 16px;
+      line-height: 1.8;
+      margin-bottom: 16px;
+    }
+
+    .mission-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      margin-top: 24px;
+    }
+
+    .mission-stats .stat {
+      text-align: center;
+      padding: 16px;
+      background: #f8f9fa;
+      border-radius: 12px;
+      transition: all 0.3s;
+    }
+
+    .mission-stats .stat:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+    }
+
+    .mission-stats .stat .number {
+      font-size: 32px;
+      font-weight: 900;
+      color: #0b6b57;
+      display: block;
+    }
+
+    .mission-stats .stat .label {
+      font-size: 13px;
+      color: #69737d;
+      font-weight: 600;
+    }
+
+    .mission-image {
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+    }
+
+    .mission-image img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      min-height: 350px;
+      transition: transform 0.5s;
+    }
+
+    .mission-image:hover img {
+      transform: scale(1.03);
+    }
+
+    /* ===== VALUES SECTION ===== */
+    .values-section {
+      margin-bottom: 60px;
+    }
+
+    .values-section .section-title {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .values-section .section-title h2 {
+      font-size: 36px;
+      font-weight: 800;
+      color: #17202a;
+    }
+
+    .values-section .section-title h2 span {
+      color: #0b6b57;
+    }
+
+    .values-section .section-title p {
+      color: #69737d;
+      font-size: 17px;
+      margin-top: 8px;
+    }
+
+    .values-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px;
+    }
+
+    .value-card {
+      background: white;
+      padding: 30px 24px;
+      border-radius: 16px;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+      border: 1px solid rgba(0,0,0,0.04);
+      transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .value-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: var(--gradient-secondary);
+      opacity: 0;
+      transition: opacity 0.4s;
+    }
+
+    .value-card:hover::before {
+      opacity: 1;
+    }
+
+    .value-card:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.1);
+    }
+
+    .value-card .icon {
+      font-size: 48px;
+      display: block;
+      margin-bottom: 12px;
+    }
+
+    .value-card h3 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #17202a;
+      margin-bottom: 8px;
+    }
+
+    .value-card p {
+      color: #69737d;
+      font-size: 14px;
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    /* ===== TEAM SECTION ===== */
+    .team-section {
+      margin-bottom: 60px;
+      background: #f8f9fa;
+      padding: 60px 0;
+      border-radius: 24px;
+    }
+
+    .team-section .section-title {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .team-section .section-title h2 {
+      font-size: 36px;
+      font-weight: 800;
+      color: #17202a;
+    }
+
+    .team-section .section-title h2 span {
+      color: #0b6b57;
+    }
+
+    .team-section .section-title p {
+      color: #69737d;
+      font-size: 17px;
+      margin-top: 8px;
+    }
+
+    .team-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px;
+      padding: 0 40px;
+    }
+
+    .team-card {
+      background: white;
+      border-radius: 16px;
+      overflow: hidden;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+      transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
+
+    .team-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.1);
+    }
+
+    .team-card .avatar {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      margin: 24px auto 12px;
+      background: var(--gradient-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 48px;
+      color: white;
+      box-shadow: 0 4px 20px rgba(11, 107, 87, 0.2);
+    }
+
+    .team-card h3 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #17202a;
+      margin-bottom: 4px;
+    }
+
+    .team-card .role {
+      color: #0b6b57;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .team-card .bio {
+      color: #69737d;
+      font-size: 13px;
+      padding: 0 16px 20px;
+      line-height: 1.6;
+    }
+
+    /* ===== TESTIMONIALS ===== */
+    .testimonials-section {
+      margin-bottom: 60px;
+    }
+
+    .testimonials-section .section-title {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .testimonials-section .section-title h2 {
+      font-size: 36px;
+      font-weight: 800;
+      color: #17202a;
+    }
+
+    .testimonials-section .section-title h2 span {
+      color: #0b6b57;
+    }
+
+    .testimonial-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+
+    .testimonial-card {
+      background: white;
+      padding: 28px;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+      border: 1px solid rgba(0,0,0,0.04);
+      transition: all 0.3s;
+    }
+
+    .testimonial-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.08);
+    }
+
+    .testimonial-card .stars {
+      color: #f39c12;
+      font-size: 18px;
+      letter-spacing: 2px;
+      margin-bottom: 10px;
+    }
+
+    .testimonial-card blockquote {
+      color: #17202a;
+      font-size: 15px;
+      line-height: 1.7;
+      font-style: italic;
+      margin: 0 0 12px 0;
+    }
+
+    .testimonial-card .author {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .testimonial-card .author .initials {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--gradient-secondary);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 16px;
+    }
+
+    .testimonial-card .author .name {
+      font-weight: 700;
+      font-size: 14px;
+      color: #17202a;
+    }
+
+    .testimonial-card .author .detail {
+      font-size: 12px;
+      color: #69737d;
+    }
+
+    /* ===== CTA SECTION ===== */
+    .cta-section {
+      background: var(--gradient-primary);
+      padding: 60px 40px;
+      border-radius: 24px;
+      text-align: center;
+      color: white;
+      margin-bottom: 40px;
+    }
+
+    .cta-section h2 {
+      font-size: 36px;
+      font-weight: 800;
+      margin-bottom: 12px;
+    }
+
+    .cta-section p {
+      font-size: 18px;
+      opacity: 0.9;
+      margin-bottom: 24px;
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .cta-section .cta-btn {
+      display: inline-block;
+      background: var(--gradient-secondary);
+      color: white;
+      padding: 16px 40px;
+      border-radius: 50px;
+      font-weight: 700;
+      font-size: 16px;
+      text-decoration: none;
+      transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      box-shadow: 0 4px 20px rgba(243, 156, 18, 0.3);
+    }
+
+    .cta-section .cta-btn:hover {
+      transform: translateY(-4px) scale(1.03);
+      box-shadow: 0 8px 40px rgba(243, 156, 18, 0.5);
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 992px) {
+      .mission-section {
+        grid-template-columns: 1fr;
+        padding: 30px;
+      }
+      .values-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .team-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .testimonial-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 768px) {
+      .about-hero {
+        padding: 50px 0 40px;
+      }
+      .about-hero h1 {
+        font-size: 36px;
+      }
+      .about-hero p {
+        font-size: 16px;
+        padding: 0 20px;
+      }
+      .mission-stats {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+      }
+      .mission-stats .stat .number {
+        font-size: 24px;
+      }
+      .values-grid {
+        grid-template-columns: 1fr;
+      }
+      .team-grid {
+        grid-template-columns: 1fr;
+        padding: 0 20px;
+      }
+      .testimonial-grid {
+        grid-template-columns: 1fr;
+      }
+      .cta-section {
+        padding: 40px 24px;
+      }
+      .cta-section h2 {
+        font-size: 28px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .mission-stats {
+        grid-template-columns: 1fr;
+      }
+      .about-hero h1 {
+        font-size: 28px;
+      }
+      .mission-content h2 {
+        font-size: 28px;
+      }
+      .values-section .section-title h2,
+      .team-section .section-title h2,
+      .testimonials-section .section-title h2 {
+        font-size: 28px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- ===== HEADER (আপডেটেড) ===== -->
+  <header>
+    <div class="container nav">
+      <a href="/" class="logo">
+        <span class="logo-icon">🍽️</span>
+        <div>
+          <h1>FoodHub</h1>
+          <span>Restaurant</span>
+        </div>
+      </a>
+
+      <!-- Search Bar -->
+      <div class="search-container">
+        <div class="search-wrapper">
+          <input type="text" id="searchInput" placeholder="Search for food..." autocomplete="off">
+          <button id="searchBtn" class="search-btn">🔍</button>
+          <button id="clearSearchBtn" class="clear-search-btn hidden">✕</button>
+        </div>
+        <div id="searchResults" class="search-results"></div>
+      </div>
+
+      <!-- Nav Actions -->
+      <div class="nav-actions">
+        <a href="/about.html" class="btn-secondary-nav" style="text-decoration:none;padding:10px 18px;border-radius:50px;background:rgba(255,255,255,0.12);color:white;font-weight:600;font-size:14px;transition:all 0.3s;">
+          <span>📖</span> <span>About</span>
+        </a>
+
+        <!-- Login Button -->
+        <button id="loginBtn" class="btn-primary-nav">
+          <span>🔑</span> <span>Login</span>
+        </button>
+
+        <!-- User Dropdown -->
+        <div class="user-dropdown" id="userDropdown">
+          <button class="dropdown-toggle" id="dropdownToggle">
+            <span id="userAvatar">👤</span>
+            <span id="userName">User</span>
+            <span class="dropdown-arrow">▼</span>
+          </button>
+          <div class="dropdown-menu" id="dropdownMenu">
+            <a href="#" onclick="showOrders()" class="dropdown-item">
+              <span>📦</span> My Orders
+            </a>
+            <a href="#" onclick="showOrderHistory()" class="dropdown-item">
+              <span>📋</span> Order History
+            </a>
+            <a href="#" onclick="showChat()" class="dropdown-item">
+              <span>💬</span> Chat
+            </a>
+            <hr class="dropdown-divider">
+            <a href="#" onclick="logout()" class="dropdown-item logout-item">
+              <span>🚪</span> Logout
+            </a>
+          </div>
+        </div>
+
+        <!-- Cart Button -->
+        <button id="cartBtn" class="btn-cart">
+          <span>🛒</span> <span>Cart</span>
+          <span class="cart-badge" id="cartCount">0</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== MAIN CONTENT ===== -->
+  <main class="container">
+
+    <!-- ===== HERO ===== -->
+    <section class="about-hero">
+      <h1>About <span>FoodHub</span></h1>
+      <p>We're on a mission to deliver delicious, high-quality food right to your doorstep.</p>
+      <div class="breadcrumb">
+        <a href="/">Home</a> / About Us
+      </div>
+    </section>
+
+    <!-- ===== MISSION ===== -->
+    <section class="mission-section">
+      <div class="mission-content">
+        <h2>Our <span>Mission</span></h2>
+        <p>
+          At FoodHub, we believe that great food brings people together. 
+          Our mission is to make delicious, high-quality meals accessible to everyone, 
+          delivered with love and care.
+        </p>
+        <p>
+          We partner with the best local restaurants and chefs to bring you 
+          authentic flavors from around the world. Every order is prepared fresh, 
+          packed with care, and delivered to you as quickly as possible.
+        </p>
+        <div class="mission-stats">
+          <div class="stat">
+            <span class="number">50+</span>
+            <span class="label">Restaurant Partners</span>
+          </div>
+          <div class="stat">
+            <span class="number">10K+</span>
+            <span class="label">Happy Customers</span>
+          </div>
+          <div class="stat">
+            <span class="number">99%</span>
+            <span class="label">Satisfaction Rate</span>
+          </div>
+        </div>
+      </div>
+      <div class="mission-image">
+        <img src="https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800" alt="Our Kitchen" loading="lazy">
+      </div>
+    </section>
+
+    <!-- ===== VALUES ===== -->
+    <section class="values-section">
+      <div class="section-title">
+        <h2>Our <span>Values</span></h2>
+        <p>What drives us every single day</p>
+      </div>
+      <div class="values-grid">
+        <div class="value-card">
+          <span class="icon">🌿</span>
+          <h3>Fresh Ingredients</h3>
+          <p>We source only the freshest, highest quality ingredients for every dish.</p>
+        </div>
+        <div class="value-card">
+          <span class="icon">⏱️</span>
+          <h3>Fast Delivery</h3>
+          <p>Hot, fresh food delivered to your door in record time.</p>
+        </div>
+        <div class="value-card">
+          <span class="icon">❤️</span>
+          <h3>Made with Love</h3>
+          <p>Every dish is prepared with passion and care by expert chefs.</p>
+        </div>
+        <div class="value-card">
+          <span class="icon">♻️</span>
+          <h3>Eco-Friendly</h3>
+          <p>We use sustainable packaging and minimize waste.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== TEAM ===== -->
+    <section class="team-section">
+      <div class="container">
+        <div class="section-title">
+          <h2>Meet Our <span>Team</span></h2>
+          <p>The passionate people behind FoodHub</p>
+        </div>
+        <div class="team-grid">
+          <div class="team-card">
+            <div class="avatar">👨‍🍳</div>
+            <h3>Chef Michael</h3>
+            <div class="role">Head Chef</div>
+            <div class="bio">20 years of culinary expertise. Michelin-trained.</div>
+          </div>
+          <div class="team-card">
+            <div class="avatar">👩‍💼</div>
+            <h3>Sarah Johnson</h3>
+            <div class="role">Operations Manager</div>
+            <div class="bio">Ensures every order is perfect from kitchen to door.</div>
+          </div>
+          <div class="team-card">
+            <div class="avatar">🧑‍🍳</div>
+            <h3>David Chen</h3>
+            <div class="role">Sous Chef</div>
+            <div class="bio">Specializes in Asian fusion and seafood dishes.</div>
+          </div>
+          <div class="team-card">
+            <div class="avatar">👩‍🍳</div>
+            <h3>Emma Rodriguez</h3>
+            <div class="role">Pastry Chef</div>
+            <div class="bio">Creating delicious desserts that make you smile.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== TESTIMONIALS ===== -->
+    <section class="testimonials-section">
+      <div class="section-title">
+        <h2>What Our <span>Customers Say</span></h2>
+        <p>Real reviews from real people</p>
+      </div>
+      <div class="testimonial-grid">
+        <div class="testimonial-card">
+          <div class="stars">⭐⭐⭐⭐⭐</div>
+          <blockquote>"Amazing food! The delivery was super fast and the food was still hot. Highly recommend!"</blockquote>
+          <div class="author">
+            <div class="initials">JM</div>
+            <div>
+              <div class="name">John Miller</div>
+              <div class="detail">Regular Customer</div>
+            </div>
+          </div>
+        </div>
+        <div class="testimonial-card">
+          <div class="stars">⭐⭐⭐⭐⭐</div>
+          <blockquote>"Best restaurant delivery service in town. The quality is consistently excellent."</blockquote>
+          <div class="author">
+            <div class="initials">AK</div>
+            <div>
+              <div class="name">Anna Kim</div>
+              <div class="detail">Food Enthusiast</div>
+            </div>
+          </div>
+        </div>
+        <div class="testimonial-card">
+          <div class="stars">⭐⭐⭐⭐⭐</div>
+          <blockquote>"I love the variety of options. There's always something new and delicious to try!"</blockquote>
+          <div class="author">
+            <div class="initials">RS</div>
+            <div>
+              <div class="name">Robert Smith</div>
+              <div class="detail">Loyal Customer</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== CTA ===== -->
+    <section class="cta-section">
+      <h2>Ready to Taste the Difference?</h2>
+      <p>Join thousands of happy customers and order your favorite meal today.</p>
+      <a href="/#menu" class="cta-btn">🍽️ Explore Our Menu</a>
+    </section>
+
+  </main>
+
+  <!-- ===== FOOTER ===== -->
+  <footer class="site-footer">
+    <div class="container footer-grid">
+      <div class="footer-brand">
+        <div class="footer-logo">FoodHub</div>
+        <p>Fresh • Fast • Delicious</p>
+        <p>Good food, delivered to your door.</p>
+      </div>
+      <div class="footer-column">
+  <h3>Quick Links</h3>
+  <p><a href="/">Home</a></p>
+  <p><a href="/about.html">About Us</a></p>
+  <p><a href="/#menu">Our Menu</a></p>
+  <p><a href="/privacy.html">Privacy Policy</a></p>
+  <p><a href="/terms.html">Terms & Conditions</a></p>
+</div>
+      <div class="footer-column">
+        <h3>Quick Links</h3>
+        <p><a href="/">Home</a></p>
+        <p><a href="/about.html">About Us</a></p>
+        <p><a href="/#menu">Our Menu</a></p>
+        <p><a href="/#menu">Order Food</a></p>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <div class="container">
+        <p>© 2026 FoodHub Restaurant. All rights reserved. Made with ❤️</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ===== MODALS ===== -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-card">
+      <button class="close" onclick="closeModal()">×</button>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
+  <div id="productModal" class="modal hidden">
+    <div class="modal-card product-detail-card">
+      <button class="close" onclick="closeProductModal()">×</button>
+      <div id="productDetailContent"></div>
+    </div>
+  </div>
+
+  <div id="orderTrackingModal" class="modal hidden">
+    <div class="modal-card order-tracking-card">
+      <button class="close" onclick="closeOrderTracking()">×</button>
+      <div id="orderTrackingContent"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <button id="floatingChat" class="floating-chat hidden">💬 Chat</button>
+
+  <!-- ===== SCRIPTS ===== -->
+  <script src="app.js"></script>
+</body>
+</html>

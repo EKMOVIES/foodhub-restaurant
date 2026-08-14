@@ -18,24 +18,53 @@ if (!process.env.DATABASE_URL || !JWT_SECRET) {
 
 // ===== EMAIL CONFIGURATION =====
 const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.EMAIL_PORT) || 587,
-  secure: process.env.EMAIL_SECURE === 'true',
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
   },
   tls: {
-    rejectUnauthorized: false
-  }
+    rejectUnauthorized: false,
+    minVersion: 'TLSv1.2'
+  },
+  connectionTimeout: 60000,
+  greetingTimeout: 60000,
+  socketTimeout: 60000,
+  pool: true,
+  maxConnections: 5,
+  rateDelta: 1000,
+  rateLimit: 5
 });
 
-transporter.verify((error, success) => {
-  if (error) {
-    console.error('Email configuration error:', error);
-  } else {
-    console.log('Email server is ready to send messages');
+async function verifyEmail() {
+  try {
+    await transporter.verify();
+    console.log('✅ Email server ready');
+  } catch (error) {
+    console.error('❌ Email error:', error.message);
+    console.log('📧 Trying fallback...');
   }
+}
+verifyEmail();
+
+// ===== DATABASE CONNECTION =====
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { 
+    rejectUnauthorized: false,
+    sslmode: 'require'
+  },
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 30000,
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000
+});
+
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle client', err);
 });
 
 // ===== EMAIL FUNCTIONS =====
@@ -229,14 +258,6 @@ async function sendPasswordResetEmail(user, resetToken) {
     return false;
   }
 }
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-  max: 5,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000
-});
 
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static(path.join(__dirname, "public")));
@@ -443,66 +464,535 @@ app.get("/api/foods", async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT f.id, f.name, f.description, f.price::float, f.image, f.category_id, f.created_at,
+        f.discount_percent, 
+        CASE 
+          WHEN f.discount_percent > 0 THEN (f.price - (f.price * f.discount_percent / 100))::float
+          ELSE NULL 
+        END as discount_price,
         c.name as category_name, c.icon as category_icon,
         COALESCE(ROUND(AVG(r.rating)::numeric, 1), 0) as rating,
         COUNT(DISTINCT r.id) as rating_count,
         COUNT(DISTINCT oi.order_id) as popularity
       FROM foods f
       LEFT JOIN categories c ON c.id = f.category_id
-      LEFT JOIN reviews r ON r.food_id = f.id
+      LEFT JOIN reviews r ON r.food_id = f.id AND r.is_approved = true
       LEFT JOIN order_items oi ON oi.food_id = f.id
       GROUP BY f.id, c.id
       ORDER BY f.id DESC
     `);
     res.json(result.rows);
   } catch (err) {
-    console.error(err);
+    console.error("Error loading foods:", err);
     res.status(500).json({ message: "Could not load menu." });
   }
 });
 
+app.post("/api/admin/foods", auth, adminOnly, async (req, res) => {
+  try {
+    const name = String(req.body.name || "").trim();
+    const description = String(req.body.description || "").trim();
+    const image = String(req.body.image || "").trim();
+    const price = Number(req.body.price);
+    const category_id = req.body.category_id || null;
+    const discount_percent = Number(req.body.discount_percent) || 0;
+    
+    if (!name || !description || !image || !Number.isFinite(price) || price < 0) {
+      return res.status(400).json({ message: "Name, description, valid price and image are required." });
+    }
+    
+    if (discount_percent < 0 || discount_percent > 100) {
+      return res.status(400).json({ message: "Discount must be between 0 and 100." });
+    }
+    
+    if (category_id) {
+      const catCheck = await pool.query("SELECT id FROM categories WHERE id = $1", [category_id]);
+      if (!catCheck.rows[0]) {
+        return res.status(400).json({ message: "Selected category does not exist." });
+      }
+    }
+    
+    const discount_price = discount_percent > 0 ? price - (price * discount_percent / 100) : null;
+    
+    const result = await pool.query(
+      `INSERT INTO foods(name, description, price, image, category_id, discount_percent, discount_price) 
+       VALUES($1, $2, $3, $4, $5, $6, $7) 
+       RETURNING id, name, description, price::float, image, category_id, discount_percent, discount_price::float`,
+      [name, description, price, image, category_id, discount_percent, discount_price]
+    );
+    res.status(201).json({ food: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Could not add food." });
+  }
+});
+
+app.put("/api/admin/foods/:id", auth, adminOnly, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ message: "Invalid food ID" });
+    }
+    
+    const name = String(req.body.name || "").trim();
+    const description = String(req.body.description || "").trim();
+    const image = String(req.body.image || "").trim();
+    const price = Number(req.body.price);
+    const category_id = req.body.category_id || null;
+    const discount_percent = Number(req.body.discount_percent) || 0;
+    
+    if (!name || !description || !image || !Number.isFinite(price) || price < 0) {
+      return res.status(400).json({ message: "Name, description, valid price and image are required." });
+    }
+    
+    if (discount_percent < 0 || discount_percent > 100) {
+      return res.status(400).json({ message: "Discount must be between 0 and 100." });
+    }
+    
+    if (category_id) {
+      const catCheck = await pool.query("SELECT id FROM categories WHERE id = $1", [category_id]);
+      if (!catCheck.rows[0]) {
+        return res.status(400).json({ message: "Selected category does not exist." });
+      }
+    }
+    
+    const discount_price = discount_percent > 0 ? price - (price * discount_percent / 100) : null;
+    
+    const result = await pool.query(
+      `UPDATE foods 
+       SET name=$1, description=$2, price=$3, image=$4, category_id=$5, 
+           discount_percent=$6, discount_price=$7
+       WHERE id=$8 
+       RETURNING id, name, description, price::float, image, category_id, discount_percent, discount_price::float`,
+      [name, description, price, image, category_id, discount_percent, discount_price, id]
+    );
+    
+    if (!result.rows[0]) {
+      return res.status(404).json({ message: "Food not found." });
+    }
+    
+    res.json({ food: result.rows[0] });
+  } catch (err) {
+    console.error("Error updating food:", err);
+    res.status(500).json({ message: "Could not update food.", error: err.message });
+  }
+});
+
+app.delete("/api/admin/foods/:id", auth, adminOnly, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ message: "Invalid food ID" });
+    }
+    
+    const used = await pool.query("SELECT COUNT(*)::int as count FROM order_items WHERE food_id=$1", [id]);
+    if (used.rows[0].count > 0) {
+      return res.status(400).json({ 
+        message: "This food exists in past orders, so edit it instead of deleting it." 
+      });
+    }
+    
+    const result = await pool.query("DELETE FROM foods WHERE id=$1 RETURNING id", [id]);
+    if (!result.rows[0]) {
+      return res.status(404).json({ message: "Food not found." });
+    }
+    
+    res.json({ message: "Food deleted successfully." });
+  } catch (err) {
+    console.error("Error deleting food:", err);
+    res.status(500).json({ message: "Could not delete food." });
+  }
+});
+
+// ===== REVIEWS =====
+
+// রিভিউ তৈরি করুন
+app.post("/api/reviews", auth, async (req, res) => {
+  try {
+    const { foodId, orderId, rating, comment } = req.body;
+    
+    if (!foodId || !rating) {
+      return res.status(400).json({ message: "Food ID and rating are required." });
+    }
+    
+    if (rating < 1 || rating > 5) {
+      return res.status(400).json({ message: "Rating must be between 1 and 5." });
+    }
+    
+    // ইউজার এই খাবারটি অর্ডার করেছে কিনা চেক করুন
+    if (orderId) {
+      const orderCheck = await pool.query(
+        `SELECT id, status FROM orders 
+         WHERE id = $1 AND user_id = $2 AND status = 'Delivered'`,
+        [orderId, req.user.id]
+      );
+      
+      if (!orderCheck.rows[0]) {
+        return res.status(403).json({ 
+          message: "You can only review delivered orders." 
+        });
+      }
+    }
+    
+    // ইতিমধ্যে রিভিউ দিয়েছে কিনা চেক করুন
+    const existing = await pool.query(
+      `SELECT id FROM reviews WHERE user_id = $1 AND food_id = $2 AND (order_id = $3 OR ($3 IS NULL AND order_id IS NULL))`,
+      [req.user.id, foodId, orderId || null]
+    );
+    
+    if (existing.rows[0]) {
+      return res.status(409).json({ message: "You already reviewed this item." });
+    }
+    
+    // রিভিউ সেভ করুন
+    const result = await pool.query(
+      `INSERT INTO reviews (user_id, food_id, order_id, rating, comment, is_approved)
+       VALUES ($1, $2, $3, $4, $5, false)
+       RETURNING id, rating, comment, created_at`,
+      [req.user.id, foodId, orderId || null, rating, comment || null]
+    );
+    
+    res.status(201).json({ 
+      message: "Review submitted! Waiting for admin approval.", 
+      review: result.rows[0] 
+    });
+  } catch (err) {
+    console.error("Error creating review:", err);
+    res.status(500).json({ message: "Could not submit review." });
+  }
+});
+
+// খাবারের রিভিউ দেখুন (পাবলিক)
+app.get("/api/foods/:id/reviews", async (req, res) => {
+  try {
+    const foodId = parseInt(req.params.id);
+    
+    if (isNaN(foodId)) {
+      return res.status(400).json({ message: "Invalid food ID." });
+    }
+    
+    const result = await pool.query(
+      `SELECT r.id, r.rating, r.comment, r.created_at, 
+              u.name as user_name, u.id as user_id
+       FROM reviews r
+       JOIN users u ON u.id = r.user_id
+       WHERE r.food_id = $1 AND r.is_approved = true
+       ORDER BY r.created_at DESC
+       LIMIT 50`,
+      [foodId]
+    );
+    
+    const stats = await pool.query(
+      `SELECT 
+        COUNT(*)::integer as total,
+        COALESCE(AVG(rating)::numeric, 0) as avg_rating,
+        COUNT(CASE WHEN rating = 5 THEN 1 END)::integer as five_star,
+        COUNT(CASE WHEN rating = 4 THEN 1 END)::integer as four_star,
+        COUNT(CASE WHEN rating = 3 THEN 1 END)::integer as three_star,
+        COUNT(CASE WHEN rating = 2 THEN 1 END)::integer as two_star,
+        COUNT(CASE WHEN rating = 1 THEN 1 END)::integer as one_star
+       FROM reviews 
+       WHERE food_id = $1 AND is_approved = true`,
+      [foodId]
+    );
+    
+    res.json({
+      reviews: result.rows,
+      stats: stats.rows[0] || { total: 0, avg_rating: 0, five_star: 0, four_star: 0, three_star: 0, two_star: 0, one_star: 0 }
+    });
+  } catch (err) {
+    console.error("Error loading reviews:", err);
+    res.status(500).json({ message: "Could not load reviews." });
+  }
+});
+
+// ইউজারের রিভিউ দেখুন
+app.get("/api/user/reviews", auth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT r.id, r.rating, r.comment, r.created_at, r.is_approved,
+              f.id as food_id, f.name as food_name, f.image as food_image
+       FROM reviews r
+       JOIN foods f ON f.id = r.food_id
+       WHERE r.user_id = $1
+       ORDER BY r.created_at DESC`,
+      [req.user.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error loading user reviews:", err);
+    res.status(500).json({ message: "Could not load your reviews." });
+  }
+});
+
+// ===== ADMIN REVIEW MANAGEMENT =====
+
+// সব রিভিউ দেখুন (অ্যাডমিন)
+app.get("/api/admin/reviews", auth, adminOnly, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT r.id, r.rating, r.comment, r.created_at, r.is_approved,
+              u.name as user_name, u.email as user_email,
+              f.id as food_id, f.name as food_name
+       FROM reviews r
+       JOIN users u ON u.id = r.user_id
+       JOIN foods f ON f.id = r.food_id
+       ORDER BY r.created_at DESC
+       LIMIT 100`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error loading admin reviews:", err);
+    res.status(500).json({ message: "Could not load reviews." });
+  }
+});
+
+// রিভিউ অ্যাপ্রুভ/রিজেক্ট (অ্যাডমিন)
+app.patch("/api/admin/reviews/:id", auth, adminOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { is_approved } = req.body;
+    
+    if (typeof is_approved !== 'boolean') {
+      return res.status(400).json({ message: "is_approved must be boolean." });
+    }
+    
+    const result = await pool.query(
+      `UPDATE reviews 
+       SET is_approved = $1, updated_at = NOW() 
+       WHERE id = $2 
+       RETURNING id, is_approved, user_id, food_id`,
+      [is_approved, id]
+    );
+    
+    if (!result.rows[0]) {
+      return res.status(404).json({ message: "Review not found." });
+    }
+    
+    res.json({ 
+      message: `Review ${is_approved ? 'approved' : 'rejected'} successfully.`,
+      review: result.rows[0] 
+    });
+  } catch (err) {
+    console.error("Error updating review:", err);
+    res.status(500).json({ message: "Could not update review." });
+  }
+});
+
+// রিভিউ ডিলিট (অ্যাডমিন)
+app.delete("/api/admin/reviews/:id", auth, adminOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(
+      `DELETE FROM reviews WHERE id = $1 RETURNING id`,
+      [id]
+    );
+    
+    if (!result.rows[0]) {
+      return res.status(404).json({ message: "Review not found." });
+    }
+    
+    res.json({ message: "Review deleted successfully." });
+  } catch (err) {
+    console.error("Error deleting review:", err);
+    res.status(500).json({ message: "Could not delete review." });
+  }
+});
+
+// ===== ORDERS =====
 // ===== ORDERS =====
 app.post("/api/orders", auth, async (req, res) => {
   const client = await pool.connect();
   try {
-    const { items, customerName, phone, address } = req.body;
-    if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ message: "Your cart is empty." });
-    if (!customerName || !phone || !address) return res.status(400).json({ message: "Customer name, phone and address are required." });
+    const { 
+      items, 
+      customerName, 
+      phone, 
+      address, 
+      instructions, 
+      paymentMethod, 
+      latitude, 
+      longitude, 
+      addressMode 
+    } = req.body;
+    
+    // ===== VALIDATION =====
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: "Your cart is empty." });
+    }
+    
+    if (!customerName || !customerName.trim()) {
+      return res.status(400).json({ message: "Customer name is required." });
+    }
+    
+    if (!phone || !phone.trim()) {
+      return res.status(400).json({ message: "Phone number is required." });
+    }
+    
+    if (!address || !address.trim()) {
+      return res.status(400).json({ message: "Delivery address is required." });
+    }
+    
+    // Phone number validation (Bangladesh format)
+    const phoneRegex = /^(01|8801)[0-9]{9}$/;
+    if (!phoneRegex.test(phone.trim())) {
+      return res.status(400).json({ 
+        message: "Please enter a valid phone number (e.g., 01XXXXXXXXX)." 
+      });
+    }
+    
     await client.query("BEGIN");
+    
     let total = 0;
     const cleanItems = [];
+    
+    // ===== PROCESS EACH ITEM =====
     for (const item of items) {
       const foodId = Number(item.foodId);
       const quantity = Number(item.quantity);
-      if (!Number.isInteger(foodId) || !Number.isInteger(quantity) || quantity < 1 || quantity > 99) throw new Error("Invalid food or quantity.");
-      const result = await client.query("SELECT id, name, price::float FROM foods WHERE id = $1", [foodId]);
+      
+      if (!Number.isInteger(foodId) || foodId < 1) {
+        throw new Error("Invalid food item ID.");
+      }
+      
+      if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
+        throw new Error("Invalid quantity. Please select between 1 and 99.");
+      }
+      
+      // Get food details from database
+      const result = await client.query(
+        "SELECT id, name, price::float, discount_percent, discount_price::float FROM foods WHERE id = $1",
+        [foodId]
+      );
+      
       const food = result.rows[0];
-      if (!food) throw new Error("A selected food no longer exists.");
-      total += Number(food.price) * quantity;
-      cleanItems.push({ foodId: food.id, name: food.name, price: Number(food.price), quantity });
+      if (!food) {
+        throw new Error(`Food item with ID ${foodId} no longer exists.`);
+      }
+      
+      // Calculate price with discount
+      let itemPrice = Number(food.price);
+      if (food.discount_percent && food.discount_percent > 0) {
+        itemPrice = Number(food.discount_price) || itemPrice;
+      }
+      
+      total += itemPrice * quantity;
+      cleanItems.push({ 
+        foodId: food.id, 
+        name: food.name, 
+        price: itemPrice, 
+        quantity 
+      });
     }
-    const orderResult = await client.query(`INSERT INTO orders(user_id, customer_name, phone, address, total, status) VALUES($1, $2, $3, $4, $5, 'Pending') RETURNING id, total::float, status, created_at`, [req.user.id, String(customerName).trim(), String(phone).trim(), String(address).trim(), total]);
+    
+    // ===== INSERT ORDER =====
+    const orderResult = await client.query(
+      `INSERT INTO orders(
+        user_id, 
+        customer_name, 
+        phone, 
+        address, 
+        total, 
+        status,
+        instructions,
+        payment_method,
+        latitude,
+        longitude,
+        address_mode
+      ) 
+      VALUES($1, $2, $3, $4, $5, 'Pending', $6, $7, $8, $9, $10) 
+      RETURNING id, total::float, status, created_at`,
+      [
+        req.user.id,
+        customerName.trim(),
+        phone.trim(),
+        address.trim(),
+        total,
+        instructions || '',
+        paymentMethod || 'cash',
+        latitude ? parseFloat(latitude) : null,
+        longitude ? parseFloat(longitude) : null,
+        addressMode || 'manual'
+      ]
+    );
+    
     const order = orderResult.rows[0];
     const orderId = order.id;
-    await client.query(`INSERT INTO order_status_history (order_id, status, created_at) VALUES ($1, 'Pending', NOW())`, [orderId]);
+    
+    // ===== INSERT ORDER STATUS HISTORY =====
+    await client.query(
+      `INSERT INTO order_status_history (order_id, status, created_at) 
+       VALUES ($1, 'Pending', NOW())`,
+      [orderId]
+    );
+    
+    // ===== INSERT ORDER ITEMS =====
     for (const item of cleanItems) {
-      await client.query(`INSERT INTO order_items(order_id, food_id, food_name, price, quantity) VALUES($1, $2, $3, $4, $5)`, [orderId, item.foodId, item.name, item.price, item.quantity]);
+      await client.query(
+        `INSERT INTO order_items(
+          order_id, 
+          food_id, 
+          food_name, 
+          price, 
+          quantity
+        ) 
+        VALUES($1, $2, $3, $4, $5)`,
+        [orderId, item.foodId, item.name, item.price, item.quantity]
+      );
     }
+    
     await client.query("COMMIT");
+    
+    // ===== SEND CONFIRMATION EMAIL =====
     try {
-      const userResult = await pool.query("SELECT id, name, email FROM users WHERE id = $1", [req.user.id]);
+      const userResult = await pool.query(
+        "SELECT id, name, email FROM users WHERE id = $1",
+        [req.user.id]
+      );
       const user = userResult.rows[0];
+      
       if (user && user.email) {
+        // Send email in background (don't wait for it)
         sendOrderConfirmationEmail(order, user, cleanItems);
       }
     } catch (emailErr) {
       console.error('Email sending error:', emailErr);
+      // Don't fail the order if email fails
     }
-    res.status(201).json({ message: "Order placed.", orderId, total });
+    
+    // ===== RETURN SUCCESS RESPONSE =====
+    res.status(201).json({ 
+      message: "Order placed successfully!", 
+      orderId: orderId,
+      total: total,
+      status: order.status,
+      created_at: order.created_at
+    });
+    
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error(err);
-    res.status(400).json({ message: err.message || "Could not place order." });
+    console.error('Order creation error:', err);
+    
+    // Send appropriate error message
+    if (err.message.includes("no longer exists")) {
+      return res.status(400).json({ 
+        message: err.message,
+        code: 'ITEM_NOT_FOUND'
+      });
+    }
+    
+    if (err.message.includes("Invalid")) {
+      return res.status(400).json({ 
+        message: err.message,
+        code: 'INVALID_INPUT'
+      });
+    }
+    
+    res.status(500).json({ 
+      message: "Could not place order. Please try again.",
+      code: 'SERVER_ERROR'
+    });
+    
   } finally {
     client.release();
   }
@@ -610,7 +1100,7 @@ app.get("/api/admin/orders", auth, adminOnly, async (req, res) => {
   }
 });
 
-// ===== UPDATE ORDER STATUS (with email) =====
+// ===== UPDATE ORDER STATUS =====
 app.patch("/api/admin/orders/:id/status", auth, adminOnly, async (req, res) => {
   const allowed = ["Pending", "Confirmed", "Preparing", "Out for Delivery", "Delivered", "Cancelled"];
   if (!allowed.includes(req.body.status)) return res.status(400).json({ message: "Invalid order status." });
@@ -647,60 +1137,7 @@ app.patch("/api/admin/orders/:id/status", auth, adminOnly, async (req, res) => {
   }
 });
 
-app.post("/api/admin/foods", auth, adminOnly, async (req, res) => {
-  try {
-    const name = String(req.body.name || "").trim();
-    const description = String(req.body.description || "").trim();
-    const image = String(req.body.image || "").trim();
-    const price = Number(req.body.price);
-    const category_id = req.body.category_id || null;
-    if (!name || !description || !image || !Number.isFinite(price) || price < 0) return res.status(400).json({ message: "Name, description, valid price and image are required." });
-    if (category_id) {
-      const catCheck = await pool.query("SELECT id FROM categories WHERE id = $1", [category_id]);
-      if (!catCheck.rows[0]) return res.status(400).json({ message: "Selected category does not exist." });
-    }
-    const result = await pool.query(`INSERT INTO foods(name, description, price, image, category_id) VALUES($1, $2, $3, $4, $5) RETURNING id, name, description, price::float, image, category_id`, [name, description, price, image, category_id]);
-    res.status(201).json({ food: result.rows[0] });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Could not add food." });
-  }
-});
-
-app.put("/api/admin/foods/:id", auth, adminOnly, async (req, res) => {
-  try {
-    const name = String(req.body.name || "").trim();
-    const description = String(req.body.description || "").trim();
-    const image = String(req.body.image || "").trim();
-    const price = Number(req.body.price);
-    const category_id = req.body.category_id || null;
-    if (!name || !description || !image || !Number.isFinite(price) || price < 0) return res.status(400).json({ message: "Name, description, valid price and image are required." });
-    if (category_id) {
-      const catCheck = await pool.query("SELECT id FROM categories WHERE id = $1", [category_id]);
-      if (!catCheck.rows[0]) return res.status(400).json({ message: "Selected category does not exist." });
-    }
-    const result = await pool.query(`UPDATE foods SET name=$1, description=$2, price=$3, image=$4, category_id=$5 WHERE id=$6 RETURNING id, name, description, price::float, image, category_id`, [name, description, price, image, category_id, req.params.id]);
-    if (!result.rows[0]) return res.status(404).json({ message: "Food not found." });
-    res.json({ food: result.rows[0] });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Could not update food." });
-  }
-});
-
-app.delete("/api/admin/foods/:id", auth, adminOnly, async (req, res) => {
-  try {
-    const used = await pool.query("SELECT COUNT(*)::int as count FROM order_items WHERE food_id=$1", [req.params.id]);
-    if (used.rows[0].count > 0) return res.status(400).json({ message: "This food exists in past orders, so edit it instead of deleting it." });
-    const result = await pool.query("DELETE FROM foods WHERE id=$1 RETURNING id", [req.params.id]);
-    if (!result.rows[0]) return res.status(404).json({ message: "Food not found." });
-    res.json({ message: "Food deleted." });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Could not delete food." });
-  }
-});
-
+// ===== ADMIN CHATS =====
 app.get("/api/admin/chats", auth, adminOnly, async (req, res) => {
   try {
     const result = await pool.query(`SELECT u.id as user_id, u.name, u.email, MAX(m.created_at) as last_message_at, (SELECT m2.message FROM messages m2 JOIN chats c2 ON c2.id = m2.chat_id WHERE c2.user_id = u.id ORDER BY m2.id DESC LIMIT 1) as last_message FROM users u JOIN chats c ON c.user_id = u.id LEFT JOIN messages m ON m.chat_id = c.id GROUP BY u.id ORDER BY last_message_at DESC NULLS LAST, u.created_at DESC`);
@@ -743,4 +1180,620 @@ app.get("/admin", (req, res) => res.sendFile(path.join(__dirname, "public", "adm
 
 app.listen(PORT, () => {
   console.log(`FoodHub server running on port ${PORT}`);
+});
+// ===== ORDER HISTORY =====
+
+// ইউজারের সব অর্ডার (ফিল্টার + সার্চ সহ)
+app.get("/api/orders/history", auth, async (req, res) => {
+  try {
+    const { status, search, page = 1, limit = 10 } = req.query;
+    const userId = req.user.id;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    
+    let query = `
+      SELECT 
+        o.id, o.customer_name, o.phone, o.address, 
+        o.total::float, o.status, o.created_at,
+        (SELECT COUNT(*) FROM order_items WHERE order_id = o.id) as item_count
+      FROM orders o
+      WHERE o.user_id = $1
+    `;
+    
+    const params = [userId];
+    let paramIndex = 2;
+    
+    // স্ট্যাটাস ফিল্টার
+    if (status && status !== 'all') {
+      query += ` AND o.status = $${paramIndex}`;
+      params.push(status);
+      paramIndex++;
+    }
+    
+    // সার্চ (অর্ডার আইডি দিয়ে)
+    if (search && !isNaN(search)) {
+      query += ` AND o.id::text LIKE $${paramIndex}`;
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+    
+    // সাজানো (নতুন প্রথম)
+    query += ` ORDER BY o.created_at DESC`;
+    
+    // পেজিনেশন
+    query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(parseInt(limit), offset);
+    
+    const result = await pool.query(query, params);
+    
+    // টোটাল কাউন্ট
+    let countQuery = `
+      SELECT COUNT(*)::integer as total 
+      FROM orders o 
+      WHERE o.user_id = $1
+    `;
+    const countParams = [userId];
+    let countIndex = 2;
+    
+    if (status && status !== 'all') {
+      countQuery += ` AND o.status = $${countIndex}`;
+      countParams.push(status);
+      countIndex++;
+    }
+    
+    if (search && !isNaN(search)) {
+      countQuery += ` AND o.id::text LIKE $${countIndex}`;
+      countParams.push(`%${search}%`);
+      countIndex++;
+    }
+    
+    const countResult = await pool.query(countQuery, countParams);
+    const total = countResult.rows[0].total;
+    
+    // প্রতিটি অর্ডারের আইটেম লোড করুন
+    for (const order of result.rows) {
+      const items = await pool.query(
+        `SELECT food_id, food_name, price::float, quantity 
+         FROM order_items 
+         WHERE order_id = $1 
+         ORDER BY id`,
+        [order.id]
+      );
+      order.items = items.rows;
+    }
+    
+    res.json({
+      orders: result.rows,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(total / parseInt(limit))
+      }
+    });
+  } catch (err) {
+    console.error("Error loading order history:", err);
+    res.status(500).json({ message: "Could not load order history." });
+  }
+});
+
+// অর্ডার স্ট্যাটাস সামারি (ড্যাশবোর্ডের জন্য)
+app.get("/api/orders/summary", auth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT 
+        COUNT(*)::integer as total_orders,
+        COUNT(CASE WHEN status = 'Pending' THEN 1 END)::integer as pending,
+        COUNT(CASE WHEN status = 'Confirmed' THEN 1 END)::integer as confirmed,
+        COUNT(CASE WHEN status = 'Preparing' THEN 1 END)::integer as preparing,
+        COUNT(CASE WHEN status = 'Out for Delivery' THEN 1 END)::integer as out_for_delivery,
+        COUNT(CASE WHEN status = 'Delivered' THEN 1 END)::integer as delivered,
+        COUNT(CASE WHEN status = 'Cancelled' THEN 1 END)::integer as cancelled,
+        COALESCE(SUM(CASE WHEN status <> 'Cancelled' THEN total ELSE 0 END), 0)::float as total_spent
+       FROM orders 
+       WHERE user_id = $1`,
+      [req.user.id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error loading order summary:", err);
+    res.status(500).json({ message: "Could not load order summary." });
+  }
+});
+
+// ===== NEWSLETTER SUBSCRIPTION =====
+app.post('/api/subscribe', async (req, res) => {
+  try {
+    const { email, name } = req.body;
+    
+    // ইমেইল ভ্যালিডেশন
+    if (!email || !email.trim()) {
+      return res.status(400).json({ message: 'Email is required.' });
+    }
+    
+    // ইমেইল ফরম্যাট চেক
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return res.status(400).json({ message: 'Please enter a valid email address.' });
+    }
+    
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName = name ? name.trim() : null;
+    
+    // চেক করুন ইমেইল ইতিমধ্যে আছে কিনা
+    const existing = await pool.query(
+      'SELECT id, is_active FROM public.subscribers WHERE email = $1',
+      [cleanEmail]
+    );
+    
+    if (existing.rows[0]) {
+      if (existing.rows[0].is_active === false) {
+        // ইনঅ্যাকটিভ হলে আবার অ্যাকটিভ করুন
+        await pool.query(
+          'UPDATE public.subscribers SET is_active = true, updated_at = NOW() WHERE email = $1',
+          [cleanEmail]
+        );
+        return res.json({ 
+          message: 'Welcome back! You have been resubscribed successfully.' 
+        });
+      }
+      return res.status(409).json({ 
+        message: 'This email is already subscribed to our newsletter.' 
+      });
+    }
+    
+    // নতুন সাবস্ক্রাইবার যোগ করুন
+    await pool.query(
+      'INSERT INTO public.subscribers (email, name) VALUES ($1, $2)',
+      [cleanEmail, cleanName]
+    );
+    
+    // (অপশনাল) ওয়েলকাম ইমেইল পাঠান
+    try {
+      await sendWelcomeEmail(cleanEmail, cleanName);
+    } catch (emailErr) {
+      console.error('Welcome email error:', emailErr);
+      // ইমেইল না গেলেও সাবস্ক্রিপশন সফল হবে
+    }
+    
+    res.status(201).json({ 
+      message: '🎉 Thank you for subscribing to our newsletter! Check your email for confirmation.' 
+    });
+    
+  } catch (err) {
+    console.error('Subscription error:', err);
+    if (err.code === '23505') {
+      return res.status(409).json({ message: 'This email is already subscribed.' });
+    }
+    res.status(500).json({ message: 'Could not subscribe. Please try again later.' });
+  }
+});
+
+// ===== GET SUBSCRIBER COUNT (অ্যাডমিন প্যানেলের জন্য) =====
+// ===== GET SUBSCRIBER COUNT (অ্যাডমিন প্যানেলের জন্য) =====
+app.get('/api/admin/subscribers/count', auth, adminOnly, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT COUNT(*)::int as total FROM public.subscribers WHERE is_active = true'
+    );
+    res.json({ total: result.rows[0].total });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Could not load subscriber count.' });
+  }
+});
+
+// ===== GET ALL SUBSCRIBERS (অ্যাডমিন প্যানেলের জন্য) =====
+app.get('/api/admin/subscribers', auth, adminOnly, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, email, name, is_active, created_at FROM public.subscribers ORDER BY created_at DESC'
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Could not load subscribers.' });
+  }
+});
+
+// ===== WELCOME EMAIL FUNCTION =====
+async function sendWelcomeEmail(email, name) {
+  try {
+    const mailOptions = {
+      from: `"FoodHub Restaurant" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: '🎉 Welcome to FoodHub Newsletter!',
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;background:#f8f9fa;border-radius:10px;">
+          <div style="background:#0b6b57;padding:20px;border-radius:10px 10px 0 0;text-align:center;">
+            <h1 style="color:white;margin:0;">🍽️ FoodHub</h1>
+            <p style="color:rgba(255,255,255,0.9);margin:5px 0 0;">Newsletter</p>
+          </div>
+          <div style="background:white;padding:25px;border-radius:0 0 10px 10px;">
+            <h2 style="color:#17202a;margin:0 0 10px;">Welcome to our community! 🎉</h2>
+            <p style="color:#69737d;">Hi ${name || 'Foodie'},</p>
+            <p style="color:#69737d;">Thank you for subscribing to FoodHub newsletter. You'll now receive:</p>
+            <ul style="color:#69737d;line-height:2;">
+              <li>🍕 Exclusive offers & discounts</li>
+              <li>🔥 New menu updates</li>
+              <li>🎉 Special event announcements</li>
+              <li>💰 Surprise deals & coupons</li>
+            </ul>
+            <div style="background:#f8f9fa;padding:15px;border-radius:8px;margin:15px 0;text-align:center;">
+              <p style="margin:0;color:#69737d;font-size:14px;">
+                Use code <strong style="color:#f39c12;">WELCOME10</strong> for 10% off your first order!
+              </p>
+            </div>
+            <hr style="border:none;border-top:1px solid #e9ecef;margin:20px 0;">
+            <p style="color:#9aa8b9;font-size:12px;text-align:center;margin:0;">
+              FoodHub Restaurant • Fresh • Fast • Delicious
+            </p>
+          </div>
+        </div>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`Welcome email sent to ${email}`);
+    return true;
+  } catch (error) {
+    console.error('Error sending welcome email:', error);
+    return false;
+  }
+}
+
+// ===== GET SINGLE ORDER FOR INVOICE =====
+app.get('/api/admin/orders/:id', auth, adminOnly, async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    
+    const orderResult = await pool.query(
+      `SELECT o.id, o.customer_name, o.phone, o.address, o.total::float, o.status, o.created_at, 
+              u.email as customer_email 
+       FROM orders o 
+       JOIN users u ON u.id = o.user_id 
+       WHERE o.id = $1`,
+      [orderId]
+    );
+    
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+    
+    const order = orderResult.rows[0];
+    
+    const itemsResult = await pool.query(
+      `SELECT food_id, food_name, price::float, quantity 
+       FROM order_items 
+       WHERE order_id = $1 
+       ORDER BY id`,
+      [orderId]
+    );
+    
+    order.items = itemsResult.rows;
+    
+    res.json(order);
+  } catch (err) {
+    console.error('Error loading order:', err);
+    res.status(500).json({ message: 'Could not load order' });
+  }
+});
+
+// ===== CUSTOMER DETAILS (অ্যাডমিন) =====
+app.get('/api/admin/customers/:id', auth, adminOnly, async (req, res) => {
+  try {
+    const userId = req.params.id;
+    
+    // ইউজার ইনফরমেশন
+    const userResult = await pool.query(
+      `SELECT id, name, email, role, created_at 
+       FROM public.users 
+       WHERE id = $1`,
+      [userId]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+    
+    const user = userResult.rows[0];
+    
+    // অর্ডার সামারি
+    const orderSummary = await pool.query(
+      `SELECT 
+        COUNT(*)::integer as total_orders,
+        COUNT(CASE WHEN status = 'Pending' THEN 1 END)::integer as pending,
+        COUNT(CASE WHEN status = 'Confirmed' THEN 1 END)::integer as confirmed,
+        COUNT(CASE WHEN status = 'Preparing' THEN 1 END)::integer as preparing,
+        COUNT(CASE WHEN status = 'Out for Delivery' THEN 1 END)::integer as out_for_delivery,
+        COUNT(CASE WHEN status = 'Delivered' THEN 1 END)::integer as delivered,
+        COUNT(CASE WHEN status = 'Cancelled' THEN 1 END)::integer as cancelled,
+        COALESCE(SUM(CASE WHEN status <> 'Cancelled' THEN total ELSE 0 END), 0)::float as total_spent
+       FROM orders 
+       WHERE user_id = $1`,
+      [userId]
+    );
+    
+    // সব অর্ডার
+    const ordersResult = await pool.query(
+      `SELECT id, customer_name, phone, address, total::float, status, created_at 
+       FROM orders 
+       WHERE user_id = $1 
+       ORDER BY id DESC`,
+      [userId]
+    );
+    
+    // প্রতিটি অর্ডারের আইটেম
+    for (const order of ordersResult.rows) {
+      const items = await pool.query(
+        `SELECT food_name, price::float, quantity 
+         FROM order_items 
+         WHERE order_id = $1`,
+        [order.id]
+      );
+      order.items = items.rows;
+    }
+    
+    // চ্যাট মেসেজ কাউন্ট
+    const chatResult = await pool.query(
+      `SELECT COUNT(*)::integer as message_count 
+       FROM messages m
+       JOIN chats c ON c.id = m.chat_id
+       WHERE c.user_id = $1`,
+      [userId]
+    );
+    
+    res.json({
+      user: user,
+      summary: orderSummary.rows[0],
+      orders: ordersResult.rows,
+      message_count: chatResult.rows[0].message_count
+    });
+    
+  } catch (err) {
+    console.error('Error loading customer details:', err);
+    res.status(500).json({ message: 'Could not load customer details' });
+  }
+});
+
+// ===== FAQ API =====
+
+// Get all active FAQs (public)
+app.get('/api/faqs', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, question, answer, category, display_order 
+       FROM public.faqs 
+       WHERE is_active = true 
+       ORDER BY display_order ASC, id ASC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error loading FAQs:', err);
+    res.status(500).json({ message: 'Could not load FAQs' });
+  }
+});
+
+// Get all FAQs (admin)
+app.get('/api/admin/faqs', auth, adminOnly, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, question, answer, category, display_order, is_active, created_at, updated_at 
+       FROM public.faqs 
+       ORDER BY display_order ASC, id ASC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error loading FAQs:', err);
+    res.status(500).json({ message: 'Could not load FAQs' });
+  }
+});
+
+// Create FAQ (admin)
+app.post('/api/admin/faqs', auth, adminOnly, async (req, res) => {
+  try {
+    const { question, answer, category, display_order, is_active } = req.body;
+    
+    if (!question || !question.trim()) {
+      return res.status(400).json({ message: 'Question is required' });
+    }
+    if (!answer || !answer.trim()) {
+      return res.status(400).json({ message: 'Answer is required' });
+    }
+    
+    const result = await pool.query(
+      `INSERT INTO public.faqs (question, answer, category, display_order, is_active) 
+       VALUES ($1, $2, $3, $4, $5) 
+       RETURNING id, question, answer, category, display_order, is_active, created_at`,
+      [question.trim(), answer.trim(), category || 'General', display_order || 0, is_active !== undefined ? is_active : true]
+    );
+    
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Error creating FAQ:', err);
+    res.status(500).json({ message: 'Could not create FAQ' });
+  }
+});
+
+// Update FAQ (admin)
+app.put('/api/admin/faqs/:id', auth, adminOnly, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { question, answer, category, display_order, is_active } = req.body;
+    
+    if (!question || !question.trim()) {
+      return res.status(400).json({ message: 'Question is required' });
+    }
+    if (!answer || !answer.trim()) {
+      return res.status(400).json({ message: 'Answer is required' });
+    }
+    
+    const result = await pool.query(
+      `UPDATE public.faqs 
+       SET question = $1, answer = $2, category = $3, display_order = $4, is_active = $5, updated_at = NOW()
+       WHERE id = $6 
+       RETURNING id, question, answer, category, display_order, is_active, updated_at`,
+      [question.trim(), answer.trim(), category || 'General', display_order || 0, is_active !== undefined ? is_active : true, id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'FAQ not found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating FAQ:', err);
+    res.status(500).json({ message: 'Could not update FAQ' });
+  }
+});
+
+// Delete FAQ (admin)
+app.delete('/api/admin/faqs/:id', auth, adminOnly, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    
+    const result = await pool.query(
+      `DELETE FROM public.faqs WHERE id = $1 RETURNING id`,
+      [id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'FAQ not found' });
+    }
+    
+    res.json({ message: 'FAQ deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting FAQ:', err);
+    res.status(500).json({ message: 'Could not delete FAQ' });
+  }
+});
+
+// Get FAQ count (admin dashboard)
+app.get('/api/admin/faqs/count', auth, adminOnly, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT COUNT(*)::integer as total FROM public.faqs WHERE is_active = true'
+    );
+    res.json({ total: result.rows[0].total });
+  } catch (err) {
+    console.error('Error loading FAQ count:', err);
+    res.status(500).json({ message: 'Could not load FAQ count' });
+  }
+});
+
+// ===== FAVORITE FOODS API =====
+
+// Get user's favorites
+app.get('/api/favorites', auth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT f.id, f.food_id, f.created_at,
+              fd.id as food_id, fd.name, fd.description, fd.price::float, fd.image, fd.category_id,
+              c.name as category_name, c.icon as category_icon
+       FROM public.favorites f
+       JOIN public.foods fd ON fd.id = f.food_id
+       LEFT JOIN public.categories c ON c.id = fd.category_id
+       WHERE f.user_id = $1
+       ORDER BY f.created_at DESC`,
+      [req.user.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error loading favorites:', err);
+    res.status(500).json({ message: 'Could not load favorites' });
+  }
+});
+
+// Add favorite
+app.post('/api/favorites', auth, async (req, res) => {
+  try {
+    const { food_id } = req.body;
+    
+    if (!food_id) {
+      return res.status(400).json({ message: 'Food ID is required' });
+    }
+    
+    // Check if food exists
+    const foodCheck = await pool.query('SELECT id FROM public.foods WHERE id = $1', [food_id]);
+    if (foodCheck.rows.length === 0) {
+      return res.status(404).json({ message: 'Food not found' });
+    }
+    
+    // Check if already favorited
+    const existing = await pool.query(
+      'SELECT id FROM public.favorites WHERE user_id = $1 AND food_id = $2',
+      [req.user.id, food_id]
+    );
+    
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ message: 'Already in favorites' });
+    }
+    
+    const result = await pool.query(
+      'INSERT INTO public.favorites (user_id, food_id) VALUES ($1, $2) RETURNING id, food_id, created_at',
+      [req.user.id, food_id]
+    );
+    
+    res.status(201).json({ 
+      message: 'Added to favorites!', 
+      favorite: result.rows[0] 
+    });
+  } catch (err) {
+    console.error('Error adding favorite:', err);
+    res.status(500).json({ message: 'Could not add to favorites' });
+  }
+});
+
+// Remove favorite
+app.delete('/api/favorites/:food_id', auth, async (req, res) => {
+  try {
+    const food_id = parseInt(req.params.food_id);
+    
+    const result = await pool.query(
+      'DELETE FROM public.favorites WHERE user_id = $1 AND food_id = $2 RETURNING id',
+      [req.user.id, food_id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Favorite not found' });
+    }
+    
+    res.json({ message: 'Removed from favorites' });
+  } catch (err) {
+    console.error('Error removing favorite:', err);
+    res.status(500).json({ message: 'Could not remove from favorites' });
+  }
+});
+
+// Check if food is favorited
+app.get('/api/favorites/check/:food_id', auth, async (req, res) => {
+  try {
+    const food_id = parseInt(req.params.food_id);
+    
+    const result = await pool.query(
+      'SELECT id FROM public.favorites WHERE user_id = $1 AND food_id = $2',
+      [req.user.id, food_id]
+    );
+    
+    res.json({ isFavorited: result.rows.length > 0 });
+  } catch (err) {
+    console.error('Error checking favorite:', err);
+    res.status(500).json({ message: 'Could not check favorite status' });
+  }
+});
+
+// Get favorite count for admin
+app.get('/api/admin/favorites/count', auth, adminOnly, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT 
+        COUNT(*)::integer as total_favorites,
+        COUNT(DISTINCT user_id)::integer as unique_users,
+        (SELECT food_id FROM favorites GROUP BY food_id ORDER BY COUNT(*) DESC LIMIT 1) as most_favorited_food
+       FROM public.favorites`
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error loading favorite count:', err);
+    res.status(500).json({ message: 'Could not load favorite count' });
+  }
 });

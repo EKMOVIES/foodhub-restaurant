@@ -3,129 +3,479 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>FoodHub Admin</title>
+  <title>FoodHub Admin Panel</title>
   <link rel="stylesheet" href="admin.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
-  <header>
-    <div class="wrap nav">
-      <h1>FoodHub Admin</h1>
-      <div>
-        <a href="/">View Website</a>
-        <button id="logout" type="button">Logout</button>
+  <!-- ===== LOGIN OVERLAY (shown when not logged in) ===== -->
+  <div id="loginOverlay" class="login-overlay">
+    <div class="login-container">
+      <div class="login-brand">
+        <div class="login-icon">🍽️</div>
+        <h1>FoodHub Admin</h1>
+        <p>Sign in to manage your restaurant</p>
+      </div>
+      <form id="loginForm" class="login-form">
+        <div class="form-group">
+          <label><i class="fas fa-envelope"></i> Email Address</label>
+          <input id="email" type="email" placeholder="admin@foodhub.com" required>
+        </div>
+        <div class="form-group">
+          <label><i class="fas fa-lock"></i> Password</label>
+          <input id="password" type="password" placeholder="Enter your password" required>
+        </div>
+        <button type="submit" class="btn-primary btn-full">
+          <i class="fas fa-sign-in-alt"></i> Sign In
+        </button>
+        <p id="error" style="color:#e74c3c;margin-top:12px;font-size:14px;"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===== SIDEBAR ===== -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">🍽️</div>
+      <div class="brand-text">
+        <h1>FoodHub</h1>
+        <span>Admin Panel</span>
       </div>
     </div>
-  </header>
 
-  <main class="wrap">
-    <section id="login" class="card login">
-      <h2>Admin Login</h2>
-      <form id="loginForm">
-        <input id="email" type="email" placeholder="Admin email" required>
-        <input id="password" type="password" placeholder="Password" required>
-        <button type="submit">Login</button>
-      </form>
-      <p id="error"></p>
-    </section>
+    <nav class="sidebar-nav">
+      <a href="#" class="nav-link active" data-section="dashboard" onclick="navigateTo('dashboard')">
+        <i class="fas fa-chart-pie"></i>
+        <span>Dashboard</span>
+      </a>
+      <a href="#" class="nav-link" data-section="categories" onclick="navigateTo('categories')">
+        <i class="fas fa-tags"></i>
+        <span>Categories</span>
+      </a>
+      <a href="#" class="nav-link" data-section="foods" onclick="navigateTo('foods')">
+        <i class="fas fa-utensils"></i>
+        <span>Food Items</span>
+      </a>
+      <a href="#" class="nav-link" data-section="orders" onclick="navigateTo('orders')">
+        <i class="fas fa-shopping-cart"></i>
+        <span>Orders</span>
+      </a>
+      <a href="#" class="nav-link" data-section="users" onclick="navigateTo('users')">
+        <i class="fas fa-users"></i>
+        <span>Customers</span>
+      </a>
+      <a href="#" class="nav-link" data-section="chats" onclick="navigateTo('chats')">
+        <i class="fas fa-comments"></i>
+        <span>Chat Support</span>
+        <span class="badge" id="chatBadge">0</span>
+      </a>
+      <a href="#" class="nav-link" data-section="faqs" onclick="navigateTo('faqs')">
+  <i class="fas fa-question-circle"></i>
+  <span>FAQ</span>
+  <span class="badge" id="faqBadge">0</span>
+</a>
+      <!-- সাইডবারে যোগ করুন -->
+<a href="#" class="nav-link" data-section="reviews" onclick="navigateTo('reviews')">
+  <i class="fas fa-star"></i>
+  <span>Reviews</span>
+  <span class="badge" id="reviewBadge">0</span>
+</a>
+<a href="#" class="nav-link" data-section="subscribers" onclick="navigateTo('subscribers')">
+  <i class="fas fa-envelope"></i>
+  <span>Subscribers</span>
+  <span class="badge" id="subscriberBadge">0</span>
+</a>
+    </nav>
 
-    <section id="dash" class="hidden">
-      <div class="stats">
-        <div><small>Foods</small><b id="foodsN">0</b></div>
-        <div><small>Orders</small><b id="ordersN">0</b></div>
-        <div><small>Customers</small><b id="customersN">0</b></div>
-        <div><small>Revenue</small><b id="revenueN">৳0</b></div>
+    <div class="sidebar-footer">
+      <a href="/" target="_blank" class="nav-link">
+        <i class="fas fa-globe"></i>
+        <span>View Website</span>
+      </a>
+      <a href="#" class="nav-link" id="logoutBtn">
+        <i class="fas fa-sign-out-alt"></i>
+        <span>Logout</span>
+      </a>
+    </div>
+  </aside>
+
+  <!-- ===== MAIN CONTENT ===== -->
+  <main class="main-content" id="mainContent" style="display:none;">
+    <!-- Top Header -->
+    <header class="top-header">
+      <button class="menu-toggle" id="menuToggle" onclick="toggleSidebar()">
+        <i class="fas fa-bars"></i>
+      </button>
+      <div class="header-search">
+        <i class="fas fa-search"></i>
+        <input type="text" id="headerSearch" placeholder="Search anything..." onkeyup="handleGlobalSearch(event)">
       </div>
+      <div class="header-user">
+        <div class="user-info">
+          <span class="user-name" id="adminName">Admin</span>
+          <span class="user-role">Administrator</span>
+        </div>
+        <div class="user-avatar" id="adminAvatar">
+          <i class="fas fa-user-circle"></i>
+        </div>
+      </div>
+    </header>
 
-      <section class="card">
-        <div class="title">
+    <!-- Content Sections -->
+    <div class="content-wrapper">
+
+      <!-- ===== DASHBOARD ===== -->
+      <section id="section-dashboard" class="content-section active">
+        <div class="section-header">
           <div>
-            <h2>Category Management</h2>
-            <p>Add, edit and delete food categories.</p>
+            <h2><i class="fas fa-chart-pie"></i> Dashboard</h2>
+            <p>Overview of your restaurant's performance</p>
           </div>
-          <button type="button" onclick="openCategory()">+ Add Category</button>
         </div>
-        <div id="categoryList" class="category-grid"></div>
+
+        <div class="stats-grid">
+          <div class="stat-card stat-food">
+            <div class="stat-icon"><i class="fas fa-utensils"></i></div>
+            <div class="stat-info">
+              <span class="stat-label">Total Foods</span>
+              <span class="stat-value" id="foodsN">0</span>
+            </div>
+            <div class="stat-trend"><i class="fas fa-arrow-up"></i> Active</div>
+          </div>
+          <div class="stat-card stat-orders">
+            <div class="stat-icon"><i class="fas fa-shopping-cart"></i></div>
+            <div class="stat-info">
+              <span class="stat-label">Total Orders</span>
+              <span class="stat-value" id="ordersN">0</span>
+            </div>
+            <div class="stat-trend"><i class="fas fa-arrow-up"></i> Total</div>
+          </div>
+          <div class="stat-card stat-users">
+            <div class="stat-icon"><i class="fas fa-users"></i></div>
+            <div class="stat-info">
+              <span class="stat-label">Customers</span>
+              <span class="stat-value" id="customersN">0</span>
+            </div>
+            <div class="stat-trend"><i class="fas fa-arrow-up"></i> Registered</div>
+          </div>
+          <div class="stat-card stat-revenue">
+            <div class="stat-icon"><i class="fas fa-dollar-sign"></i></div>
+            <div class="stat-info">
+              <span class="stat-label">Revenue</span>
+              <span class="stat-value" id="revenueN">৳0</span>
+            </div>
+            <div class="stat-trend"><i class="fas fa-arrow-up"></i> Total</div>
+          </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="dashboard-grid">
+          <div class="card quick-actions">
+            <h3><i class="fas fa-bolt"></i> Quick Actions</h3>
+            <div class="action-grid">
+              <button onclick="openCategory()" class="action-btn">
+                <i class="fas fa-plus-circle"></i> Add Category
+              </button>
+              <button onclick="openFood()" class="action-btn">
+                <i class="fas fa-plus-circle"></i> Add Food
+              </button>
+              <button onclick="navigateTo('orders')" class="action-btn">
+                <i class="fas fa-clipboard-list"></i> View Orders
+              </button>
+              <button onclick="navigateTo('chats')" class="action-btn">
+                <i class="fas fa-comment"></i> Support Chat
+              </button>
+            </div>
+          </div>
+          <div class="card recent-orders">
+            <h3><i class="fas fa-clock"></i> Recent Orders</h3>
+            <div id="recentOrdersList">
+              <p class="text-muted">Loading recent orders...</p>
+            </div>
+          </div>
+        </div>
       </section>
 
-      <section class="card">
-        <div class="title">
+      <!-- ===== CATEGORIES ===== -->
+      <section id="section-categories" class="content-section">
+        <div class="section-header">
           <div>
-            <h2>Food Management</h2>
-            <p>Add, edit and delete menu items.</p>
+            <h2><i class="fas fa-tags"></i> Categories</h2>
+            <p>Manage your food categories</p>
           </div>
-          <button type="button" onclick="openFood()">+ Add Food</button>
+          <button class="btn-primary" onclick="openCategory()">
+            <i class="fas fa-plus"></i> Add Category
+          </button>
         </div>
-        <div id="foodList" class="grid"></div>
+        <div class="card">
+          <div id="categoryList" class="category-grid"></div>
+        </div>
       </section>
 
-      <section class="card">
-        <div class="title">
+      <!-- ===== FOODS ===== -->
+      <section id="section-foods" class="content-section">
+        <div class="section-header">
           <div>
-            <h2>Users</h2>
-            <p>Customer accounts and activity.</p>
+            <h2><i class="fas fa-utensils"></i> Food Items</h2>
+            <p>Manage your menu items</p>
           </div>
+          <button class="btn-primary" onclick="openFood()">
+            <i class="fas fa-plus"></i> Add Food
+          </button>
         </div>
-        <div id="userList"></div>
+        <div class="card">
+          <div id="foodList" class="food-grid"></div>
+        </div>
       </section>
 
-      <section class="card">
-        <div class="title">
+      <!-- ===== ORDERS ===== -->
+      <section id="section-orders" class="content-section">
+        <div class="section-header">
           <div>
-            <h2>Customer Chat</h2>
-            <p>Select a customer and reply.</p>
+            <h2><i class="fas fa-shopping-cart"></i> Orders</h2>
+            <p>Manage all customer orders</p>
           </div>
+          <div class="order-filters">
+            <select id="orderStatusFilter" onchange="filterOrders()">
+              <option value="all">All Orders</option>
+              <option value="Pending">⏳ Pending</option>
+              <option value="Confirmed">✅ Confirmed</option>
+              <option value="Preparing">👨‍🍳 Preparing</option>
+              <option value="Out for Delivery">🛵 Out for Delivery</option>
+              <option value="Delivered">🏠 Delivered</option>
+              <option value="Cancelled">❌ Cancelled</option>
+            </select>
+          </div>
+
         </div>
-        <div class="chatLayout">
-          <div id="chatList" class="chatList"></div>
-          <div class="adminChat">
-            <div id="chatTitle" class="chatTitle">Select a conversation</div>
-            <div id="adminMessages" class="chat-messages"></div>
-            <form id="adminChatForm" class="chat-form hidden">
-              <input id="adminChatInput" maxlength="2000" placeholder="Reply to customer..." autocomplete="off" required>
-              <button type="submit">Send</button>
-            </form>
-          </div>
+        <div class="card">
+          <div id="orderList"></div>
         </div>
       </section>
 
-      <section class="card">
-        <h2>Orders</h2>
-        <div id="orderList"></div>
+      <!-- ===== USERS ===== -->
+      <section id="section-users" class="content-section">
+        <div class="section-header">
+          <div>
+            <h2><i class="fas fa-users"></i> Customers</h2>
+            <p>View all registered customers</p>
+          </div>
+          <input type="text" id="userSearch" placeholder="Search customers..." onkeyup="filterUsers()" style="padding:10px 16px;border:2px solid #e9ecef;border-radius:8px;font-size:14px;min-width:200px;">
+        </div>
+        <div class="card">
+          <div id="userList"></div>
+        </div>
       </section>
-    </section>
+<!-- ===== CUSTOMER PROFILE ===== -->
+<section id="section-customer" class="content-section">
+  <div class="section-header">
+    <div>
+      <h2><i class="fas fa-user-circle"></i> Customer Profile</h2>
+      <p id="customerProfileSubtitle">View customer details and order history</p>
+    </div>
+    <button class="btn-secondary" onclick="navigateTo('users')">
+      ← Back to Customers
+    </button>
+  </div>
+  
+  <div id="customerProfileContent">
+    <div style="text-align:center;padding:60px;color:#69737d;">
+      <i class="fas fa-user" style="font-size:48px;display:block;margin-bottom:12px;opacity:0.3;"></i>
+      <p>Select a customer from the Users list to view their profile.</p>
+    </div>
+  </div>
+</section>
+      <!-- ===== CHATS ===== -->
+      <section id="section-chats" class="content-section">
+        <div class="section-header">
+          <div>
+            <h2><i class="fas fa-comments"></i> Customer Support</h2>
+            <p>Chat with your customers in real-time</p>
+          </div>
+          <span class="chat-status">
+            <i class="fas fa-circle" style="color: #27ae60;"></i> Online
+          </span>
+        </div>
+        <div class="card chat-container">
+          <div class="chat-layout">
+            <div class="chat-sidebar">
+              <div class="chat-sidebar-header">
+                <input type="text" id="chatSearch" placeholder="Search customers..." onkeyup="filterChatList()">
+              </div>
+              <div id="chatList" class="chat-list"></div>
+            </div>
+            <div class="chat-main">
+              <div id="chatTitle" class="chat-title">
+                <i class="fas fa-comment-dots"></i> Select a conversation
+              </div>
+              <div id="adminMessages" class="chat-messages"></div>
+              <form id="adminChatForm" class="chat-form hidden">
+                <input id="adminChatInput" maxlength="2000" placeholder="Type your reply..." autocomplete="off" required>
+                <button type="submit"><i class="fas fa-paper-plane"></i> Send</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+<!-- ===== REVIEWS ===== -->
+<section id="section-reviews" class="content-section">
+  <div class="section-header">
+    <div>
+      <h2><i class="fas fa-star"></i> Reviews</h2>
+      <p>Manage customer reviews and ratings</p>
+    </div>
+    <div>
+      <span style="font-size:14px;color:#69737d;">
+        <i class="fas fa-info-circle"></i> Reviews need admin approval
+      </span>
+    </div>
+  </div>
+  <div class="card">
+    <div id="reviewList"></div>
+  </div>
+</section>
+<!-- ===== SUBSCRIBERS ===== -->
+<section id="section-subscribers" class="content-section">
+  <div class="section-header">
+    <div>
+      <h2><i class="fas fa-envelope"></i> Newsletter Subscribers</h2>
+      <p>Manage your email subscribers</p>
+    </div>
+    <span style="font-size:14px;color:#69737d;">
+      Total: <strong id="subscriberTotal">0</strong>
+    </span>
+  </div>
+  <div class="card">
+    <div id="subscriberList"></div>
+  </div>
+</section>
+<!-- ===== FAQ MANAGEMENT ===== -->
+<section id="section-faqs" class="content-section">
+  <div class="section-header">
+    <div>
+      <h2><i class="fas fa-question-circle"></i> FAQ Management</h2>
+      <p>Manage frequently asked questions</p>
+    </div>
+    <button class="btn-primary" onclick="openFaq()">
+      <i class="fas fa-plus"></i> Add FAQ
+    </button>
+  </div>
+  <div class="card">
+    <div id="faqList"></div>
+  </div>
+</section>
+    </div>
   </main>
-
+<!-- ===== FAQ MODAL ===== -->
+<div id="faqModal" class="modal hidden">
+  <div class="modal-card">
+    <button class="close" type="button" onclick="closeFaq()">×</button>
+    <h2 id="faqFormTitle"><i class="fas fa-question-circle"></i> Add FAQ</h2>
+    <form id="faqForm">
+      <input id="faqId" type="hidden">
+      <div class="form-group">
+        <label>📝 Question</label>
+        <input id="faqQuestion" placeholder="Enter the question..." required>
+      </div>
+      <div class="form-group">
+        <label>📄 Answer</label>
+        <textarea id="faqAnswer" rows="4" placeholder="Enter the answer..." required></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>📂 Category</label>
+          <select id="faqCategory">
+            <option value="General">General</option>
+            <option value="Ordering">Ordering</option>
+            <option value="Delivery">Delivery</option>
+            <option value="Payment">Payment</option>
+            <option value="Support">Support</option>
+            <option value="Orders">Orders</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>🔢 Display Order</label>
+          <input id="faqOrder" type="number" min="0" value="0" placeholder="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+          <input id="faqActive" type="checkbox" checked>
+          <span>Active (show on website)</span>
+        </label>
+      </div>
+      <button type="submit" class="btn-primary btn-full"><i class="fas fa-save"></i> Save FAQ</button>
+    </form>
+  </div>
+</div>
+  <!-- ===== MODALS ===== -->
+  <!-- Category Modal -->
   <div id="categoryModal" class="modal hidden">
-    <div class="modalCard">
+    <div class="modal-card">
       <button class="close" type="button" onclick="closeCategory()">×</button>
-      <h2 id="categoryFormTitle">Add Category</h2>
+      <h2 id="categoryFormTitle"><i class="fas fa-tag"></i> Add Category</h2>
       <form id="categoryForm">
         <input id="categoryId" type="hidden">
-        <input id="categoryName" placeholder="Category name" required>
-        <input id="categoryIcon" placeholder="Icon emoji (e.g., 🍕)" required>
-        <textarea id="categoryDesc" placeholder="Category description" rows="2"></textarea>
-        <button type="submit">Save Category</button>
+        <div class="form-group">
+          <label>Category Name</label>
+          <input id="categoryName" placeholder="e.g., Pizza, Burgers" required>
+        </div>
+        <div class="form-group">
+          <label>Icon Emoji</label>
+          <input id="categoryIcon" placeholder="e.g., 🍕, 🍔" required>
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="categoryDesc" placeholder="Brief description" rows="2"></textarea>
+        </div>
+        <button type="submit" class="btn-primary btn-full"><i class="fas fa-save"></i> Save Category</button>
       </form>
     </div>
   </div>
 
+  <!-- Food Modal -->
   <div id="modal" class="modal hidden">
-    <div class="modalCard">
+    <div class="modal-card">
       <button class="close" type="button" onclick="closeFood()">×</button>
-      <h2 id="formTitle">Add Food</h2>
+      <h2 id="formTitle"><i class="fas fa-utensils"></i> Add Food Item</h2>
       <form id="foodForm">
         <input id="foodId" type="hidden">
-        <input id="foodName" placeholder="Food name" required>
-        <textarea id="foodDesc" placeholder="Description" required></textarea>
-        <input id="foodPrice" type="number" min="0" step=".01" placeholder="Price" required>
-        <input id="foodImage" type="url" placeholder="Image URL" required>
-        <select id="foodCategory" required>
-          <option value="">Select Category</option>
-        </select>
-        <button type="submit">Save Food</button>
+        <div class="form-group">
+          <label>Food Name</label>
+          <input id="foodName" placeholder="e.g., Margherita Pizza" required>
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="foodDesc" placeholder="Describe the food" required></textarea>
+        </div>
+        <div class="form-row">
+  <div class="form-group">
+    <label>💰 Price (৳)</label>
+    <input id="foodPrice" type="number" min="0" step=".01" placeholder="0.00" required>
+  </div>
+  <div class="form-group">
+    <label>🏷️ Discount (%)</label>
+    <input id="foodDiscount" type="number" min="0" max="100" placeholder="0" value="0">
+    <small style="color:#69737d;font-size:11px;">0 = No discount, 10 = 10% off</small>
+  </div>
+</div>
+<div class="form-group">
+  <label>📁 Category</label>
+  <select id="foodCategory" required>
+    <option value="">Select Category</option>
+  </select>
+</div>
+        <div class="form-group">
+          <label>Image URL</label>
+          <input id="foodImage" type="url" placeholder="https://example.com/image.jpg" required>
+        </div>
+        <button type="submit" class="btn-primary btn-full"><i class="fas fa-save"></i> Save Food</button>
       </form>
     </div>
   </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast"></div>
 
   <script src="admin.js"></script>
 </body>

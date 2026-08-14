@@ -7,61 +7,118 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header>
-    <div class="container nav">
-      <h1>FoodHub</h1>
-      <div class="search-container">
-        <div class="search-wrapper">
-          <input type="text" id="searchInput" placeholder="Search for food..." autocomplete="off">
-          <button id="searchBtn" class="search-btn">🔍</button>
-          <button id="clearSearchBtn" class="clear-search-btn hidden">✕</button>
-        </div>
-        <div id="searchResults" class="search-results"></div>
+<header>
+  <div class="container nav">
+    <a href="/" class="logo">
+      <span class="logo-icon">🍽️</span>
+      <div>
+        <h1>FoodHub</h1>
+        <span>Restaurant</span>
       </div>
-      <div class="nav-actions">
-        <span id="welcome"></span>
-        <button id="ordersBtn" class="secondary hidden">My Orders</button>
-        <button id="chatBtn" class="secondary hidden">Chat</button>
-        <button id="loginBtn">Login</button>
-        <button id="logoutBtn" class="secondary hidden">Logout</button>
-        <button id="cartBtn">Cart (<span id="cartCount">0</span>)</button>
+    </a>
+
+    <!-- Search Bar -->
+    <div class="search-container">
+      <div class="search-wrapper">
+        <input type="text" id="searchInput" placeholder="Search for food..." autocomplete="off">
+        <button id="searchBtn" class="search-btn">🔍</button>
+        <button id="clearSearchBtn" class="clear-search-btn hidden">✕</button>
       </div>
+      <div id="searchResults" class="search-results"></div>
     </div>
-  </header>
+
+    <!-- Nav Actions -->
+    <div class="nav-actions">
+      <!-- About Link -->
+      <a href="/about.html" class="btn-secondary-nav" style="text-decoration:none;padding:10px 18px;border-radius:50px;background:rgba(255,255,255,0.12);color:white;font-weight:600;font-size:14px;transition:all 0.3s;">
+        <span>📖</span> <span>About</span>
+      </a>
+
+      <!-- Login Button (hidden when logged in) -->
+      <button id="loginBtn" class="btn-primary-nav">
+        <span>🔑</span> <span>Login</span>
+      </button>
+
+      <!-- User Dropdown (hidden when logged out) -->
+      <div class="user-dropdown" id="userDropdown">
+        <button class="dropdown-toggle" id="dropdownToggle">
+          <span id="userAvatar">👤</span>
+          <span id="userName">User</span>
+          <span class="dropdown-arrow">▼</span>
+        </button>
+        <div class="dropdown-menu" id="dropdownMenu">
+          <a href="#" onclick="showOrders()" class="dropdown-item">
+            <span>📦</span> My Orders
+          </a>
+          <a href="#" onclick="showFavorites()" class="dropdown-item">
+  <span>❤️</span> My Favorites
+</a>
+          <a href="#" onclick="showOrderHistory()" class="dropdown-item">
+            <span>📋</span> Order History
+          </a>
+          <a href="#" onclick="showChat()" class="dropdown-item">
+            <span>💬</span> Chat
+          </a>
+          <hr class="dropdown-divider">
+          <a href="#" onclick="logout()" class="dropdown-item logout-item">
+            <span>🚪</span> Logout
+          </a>
+        </div>
+      </div>
+
+      <!-- Cart Button -->
+      <button id="cartBtn" class="btn-cart">
+        <span>🛒</span> <span>Cart</span>
+        <span class="cart-badge" id="cartCount">0</span>
+      </button>
+    </div>
+  </div>
+</header>
 
   <main class="container">
     <section class="hero-slideshow">
       <div class="slideshow-container">
-        <div class="slide fade active">
-          <div class="slide-bg" style="background-image: url('https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1400')">
-            <div class="slide-content">
-              <p class="eyebrow">Fresh • Fast • Delicious</p>
-              <h2>Good food, delivered to your door.</h2>
-              <p>Choose your favourite food, add it to your cart and place your order.</p>
-              <button onclick="document.getElementById('menu').scrollIntoView({behavior:'smooth'})">Explore Menu</button>
-            </div>
-          </div>
-        </div>
-        <div class="slide fade">
-          <div class="slide-bg" style="background-image: url('https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=1400')">
-            <div class="slide-content">
-              <p class="eyebrow">Premium Quality</p>
-              <h2>Fresh ingredients, authentic taste.</h2>
-              <p>Every dish is prepared with care using the finest ingredients.</p>
-              <button onclick="document.getElementById('menu').scrollIntoView({behavior:'smooth'})">Order Now</button>
-            </div>
-          </div>
-        </div>
-        <div class="slide fade">
-          <div class="slide-bg" style="background-image: url('https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=1400')">
-            <div class="slide-content">
-              <p class="eyebrow">Special Offer</p>
-              <h2>Get 20% off on your first order!</h2>
-              <p>Use code FIRST20 at checkout. Limited time offer.</p>
-              <button onclick="document.getElementById('menu').scrollIntoView({behavior:'smooth'})">Grab Deal</button>
-            </div>
-          </div>
-        </div>
+        <!-- স্লাইড ১ -->
+<div class="slide fade active">
+  <div class="slide-bg" style="background-image: url('https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1400')">
+    <div class="slide-content">
+      <span class="eyebrow">🍽️ Fresh • Fast • Delicious</span>
+      <h2>Good food, delivered <br>to your door.</h2>
+      <p>Choose your favourite food, add it to your cart and place your order. Fresh ingredients, authentic taste.</p>
+      <button class="hero-btn" onclick="document.getElementById('menu').scrollIntoView({behavior:'smooth'})">
+        🚀 Explore Menu
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- স্লাইড ২ -->
+<div class="slide fade">
+  <div class="slide-bg" style="background-image: url('https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=1400')">
+    <div class="slide-content">
+      <span class="eyebrow">⭐ Premium Quality</span>
+      <h2>Fresh ingredients, <br>authentic taste.</h2>
+      <p>Every dish is prepared with care using the finest ingredients. Taste the difference of quality.</p>
+      <button class="hero-btn" onclick="document.getElementById('menu').scrollIntoView({behavior:'smooth'})">
+        🍕 Order Now
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- স্লাইড ৩ -->
+<div class="slide fade">
+  <div class="slide-bg" style="background-image: url('https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=1400')">
+    <div class="slide-content">
+      <span class="eyebrow">🎉 Special Offer</span>
+      <h2>Get 20% off on <br>your first order!</h2>
+      <p>Use code <strong style="color:#f39c12;">FIRST20</strong> at checkout. Limited time offer. Don't miss out!</p>
+      <button class="hero-btn" onclick="document.getElementById('menu').scrollIntoView({behavior:'smooth'})">
+        🎯 Grab Deal
+      </button>
+    </div>
+  </div>
+</div>
         <div class="dots-container">
           <span class="dot active" onclick="currentSlide(0)"></span>
           <span class="dot" onclick="currentSlide(1)"></span>
@@ -72,7 +129,7 @@
       </div>
     </section>
 
-    <section id="menu">
+<section id="menu">
       <div class="section-heading">
         <h2>Our Menu</h2>
         <p>Freshly prepared favourites.</p>
@@ -117,6 +174,142 @@
       </div>
       <div id="foodGrid" class="food-grid"></div>
     </section>
+  
+  <!-- ===== CATEGORY WISE FOODS ===== -->
+  <section class="category-wise-foods" id="categoryWiseSection">
+    <div class="section-heading">
+      <h2>📂 Browse by Category</h2>
+      <p>Explore our delicious categories</p>
+    </div>
+    <div id="categoryWiseContainer"></div>
+  </section>
+
+  <!-- ===== FEATURED PRODUCT WITH POSTER ===== -->
+  <section class="featured-product">
+    <div class="featured-product-content">
+      <div class="featured-image">
+        <img id="featuredProductImage" src="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600" alt="Featured Product">
+      </div>
+      <div class="featured-info">
+        <span class="featured-badge">🌟 Chef's Special</span>
+        <h2 id="featuredProductName">Chicken Burger</h2>
+        <p id="featuredProductDesc">Juicy chicken burger with fresh vegetables and special sauce.</p>
+        <div class="featured-price">
+          <span class="original-price" id="featuredOriginalPrice">৳250.00</span>
+          <span class="discount-price" id="featuredDiscountPrice">৳220.00</span>
+        </div>
+        <div class="featured-actions">
+          <button class="featured-order-btn" onclick="showProductDetail(1)">🛒 Order Now</button>
+          <button class="featured-detail-btn" onclick="showProductDetail(1)">View Details</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  
+    <!-- ===== POPULAR FOODS ===== -->
+  <section class="popular-foods">
+    <div class="section-heading">
+      <h2>🔥 Most Popular</h2>
+      <p>Our customers' favorite dishes</p>
+    </div>
+    <div id="popularFoodGrid" class="food-grid"></div>
+  </section>
+ <!-- ===== SPECIAL OFFER BANNER ===== -->
+  <section class="offer-banner">
+    <div class="offer-banner-content">
+      <div class="offer-text">
+        <span class="offer-tag">🔥 SPECIAL OFFER</span>
+        <h2>Get 20% Off <br>Your First Order</h2>
+        <p>Use code <strong>FIRST20</strong> at checkout. Limited time offer!</p>
+        <button class="offer-btn" onclick="document.getElementById('menu').scrollIntoView({behavior:'smooth'})">
+          🍽️ Order Now
+        </button>
+      </div>
+      <div class="offer-image">
+        <span class="offer-emoji">🍕</span>
+        <span class="discount-badge">-20%</span>
+      </div>
+    </div>
+  </section>
+  <!-- ===== WHY CHOOSE US ===== -->
+  <section class="why-choose-us">
+    <div class="section-heading">
+      <h2>✨ Why Choose FoodHub?</h2>
+      <p>We deliver happiness with every order</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card">
+        <span class="feature-icon">🚀</span>
+        <h3>Fast Delivery</h3>
+        <p>Hot & fresh food delivered in 30-45 minutes</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🌿</span>
+        <h3>Fresh Ingredients</h3>
+        <p>100% fresh, high-quality ingredients</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">👨‍🍳</span>
+        <h3>Expert Chefs</h3>
+        <p>Prepared by experienced professional chefs</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">💳</span>
+        <h3>Easy Payment</h3>
+        <p>Multiple payment options available</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== FAQ SECTION ===== -->
+<section class="faq-section">
+  <div class="section-heading">
+    <h2>❓ Frequently Asked Questions</h2>
+    <p>Find answers to common questions about our service</p>
+  </div>
+  <div class="faq-container" id="faqContainer">
+    <div style="text-align:center;padding:40px;color:#69737d;">
+      <div class="spinner" style="width:30px;height:30px;border:3px solid #f0f2f5;border-top:3px solid #f39c12;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto;"></div>
+      <p style="margin-top:10px;">Loading FAQs...</p>
+    </div>
+  </div>
+</section>
+  <!-- ===== NEWSLETTER SECTION ===== -->
+<section class="newsletter-section">
+  <div class="newsletter-container">
+    <div class="newsletter-content">
+      <div class="newsletter-text">
+        <span class="newsletter-icon">📧</span>
+        <h2>Subscribe to Our Newsletter</h2>
+        <p>Get the latest updates, exclusive offers, and delicious recipes delivered to your inbox.</p>
+      </div>
+      <form class="newsletter-form" id="newsletterForm" onsubmit="subscribeNewsletter(event)">
+        <div class="newsletter-input-group">
+          <input 
+            type="email" 
+            id="newsletterEmail" 
+            placeholder="Enter your email address" 
+            required
+            autocomplete="email"
+          >
+          <input 
+            type="text" 
+            id="newsletterName" 
+            placeholder="Your name (optional)" 
+            autocomplete="name"
+          >
+          <button type="submit" id="newsletterBtn">
+            <span class="btn-text">Subscribe</span>
+            <span class="btn-loader hidden">⏳</span>
+          </button>
+        </div>
+        <div id="newsletterMessage" class="newsletter-message hidden"></div>
+        <p class="newsletter-note">🔒 No spam. Unsubscribe anytime.</p>
+      </form>
+    </div>
+  </div>
+</section>
   </main>
 
   <div id="modal" class="modal hidden">
@@ -162,12 +355,14 @@
         <p>Fresh • Fast • Delicious</p>
         <p>Good food, delivered to your door.</p>
       </div>
-      <div class="footer-column">
-        <h3>Contact Us</h3>
-        <p><strong>Address:</strong> Your restaurant address</p>
-        <p><strong>Phone:</strong> Your phone number</p>
-        <p><strong>Email:</strong> Your email address</p>
-      </div>
+     <div class="footer-column">
+  <h3>Quick Links</h3>
+  <p><a href="/">Home</a></p>
+  <p><a href="/about.html">About Us</a></p>
+  <p><a href="/#menu">Our Menu</a></p>
+  <p><a href="/privacy.html">Privacy Policy</a></p>
+  <p><a href="/terms.html">Terms & Conditions</a></p>
+</div>
       <div class="footer-column">
         <h3>FoodHub</h3>
         <p><a href="#menu">Our Menu</a></p>
